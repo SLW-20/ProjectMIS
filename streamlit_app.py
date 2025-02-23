@@ -1,210 +1,121 @@
 import streamlit as st
 import numpy as np
 import pandas as pd
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
-import plotly.express as px
+from sklearn.ensemble import RandomForestClassifier
 
-# Page configuration
-st.set_page_config(
-    page_title="Real Estate Price Prediction",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+st.title('🤖 Machine Learning App')
 
-# App title and description
-st.title('Abha Real Estate')
-st.markdown("""
-**Predict property prices** based on location, features, and market trends.
-Explore market dynamics through interactive visualizations.
-""")
+st.info('This is app builds a machine learning model!')
 
-# Data loading and preprocessing with enhanced validation
-@st.cache_data
-def load_and_clean_data():
-    """Load and preprocess real estate data with robust type checking"""
-    url = "https://raw.githubusercontent.com/SLW-20/ProjectMIS/refs/heads/master/abha%20real%20estate.csv"
-    
-    try:
-        df = pd.read_csv(url)
-        
-        # Validate required columns
-        required_columns = ['neighborhood_name', 'classification_name', 
-                           'property_type_name', 'area', 'price']
-        missing = [col for col in required_columns if col not in df.columns]
-        if missing:
-            raise ValueError(f"Missing columns: {', '.join(missing)}")
+with st.expander('Data'):
+  st.write('**Raw data**')
+  df = pd.read_csv('https://raw.githubusercontent.com/dataprofessor/data/master/penguins_cleaned.csv')
+  df
 
-        # Enhanced numeric conversion with error tracking
-        numeric_cols = ['price', 'area']
-        
-        for col in numeric_cols:
-            # Remove non-numeric characters and convert to float
-            df[col] = (
-                df[col]
-                .astype(str)
-                .str.replace(r'[^\d.]', '', regex=True)
-                .replace({'': np.nan, 'nan': np.nan, 'None': np.nan})
-                .apply(pd.to_numeric, errors='coerce')
-            )  # Added closing parenthesis here
-            
-        # Remove rows with invalid numeric values
-        df_clean = df.dropna(subset=numeric_cols).copy()
-        
-        # Validate numeric columns
-        for col in numeric_cols:
-            if not np.issubdtype(df_clean[col].dtype, np.number):
-                raise TypeError(f"Column {col} contains non-numeric values after cleaning")
+  st.write('**X**')
+  X_raw = df.drop('species', axis=1)
+  X_raw
 
-        # Calculate IQR ranges using clean numeric data
-        Q1 = df_clean[numeric_cols].quantile(0.05)
-        Q3 = df_clean[numeric_cols].quantile(0.95)
-        IQR = Q3 - Q1
+  st.write('**y**')
+  y_raw = df.species
+  y_raw
 
-        # Identify outliers with proper parentheses
-        outlier_mask = (
-            (df_clean[numeric_cols] < (Q1 - 1.5 * IQR)) | 
-            (df_clean[numeric_cols] > (Q3 + 1.5 * IQR))
-        ).any(axis=1)
+with st.expander('Data visualization'):
+  st.scatter_chart(data=df, x='bill_length_mm', y='body_mass_g', color='species')
 
-        final_df = df_clean[~outlier_mask]
-        
-        # Post-cleaning validation
-        if final_df.empty:
-            raise ValueError("No valid data remaining after cleaning")
-            
-        return final_df
+# Input features
+with st.sidebar:
+  st.header('Input features')
+  island = st.selectbox('Island', ('Biscoe', 'Dream', 'Torgersen'))
+  bill_length_mm = st.slider('Bill length (mm)', 32.1, 59.6, 43.9)
+  bill_depth_mm = st.slider('Bill depth (mm)', 13.1, 21.5, 17.2)
+  flipper_length_mm = st.slider('Flipper length (mm)', 172.0, 231.0, 201.0)
+  body_mass_g = st.slider('Body mass (g)', 2700.0, 6300.0, 4207.0)
+  gender = st.selectbox('Gender', ('male', 'female'))
+  
+  # Create a DataFrame for the input features
+  data = {'island': island,
+          'bill_length_mm': bill_length_mm,
+          'bill_depth_mm': bill_depth_mm,
+          'flipper_length_mm': flipper_length_mm,
+          'body_mass_g': body_mass_g,
+          'sex': gender}
+  input_df = pd.DataFrame(data, index=[0])
+  input_penguins = pd.concat([input_df, X_raw], axis=0)
 
-    except Exception as e:
-        st.error(f"Data processing error: {str(e)}")
-        st.stop()
+with st.expander('Input features'):
+  st.write('**Input penguin**')
+  input_df
+  st.write('**Combined penguins data**')
+  input_penguins
 
-# Model training pipeline
-@st.cache_resource
-def train_price_model(_df):
-    """Train and evaluate pricing model with data validation"""
-    try:
-        X = pd.get_dummies(
-            _df[['neighborhood_name', 'classification_name', 
-                'property_type_name', 'area']],
-            drop_first=True
-        )
-        y = _df['price'].astype(float)
-        
-        X_train, X_test, y_train, y_test = train_test_split(
-            X, y, test_size=0.2, random_state=42
-        )
-        
-        model = RandomForestRegressor(
-            n_estimators=200,
-            max_depth=20,
-            random_state=42,
-            n_jobs=-1
-        )
-        model.fit(X_train, y_train)
-        
-        y_pred = model.predict(X_test)
-        metrics = {
-            'r2': r2_score(y_test, y_pred),
-            'mae': mean_absolute_error(y_test, y_pred),
-            'rmse': np.sqrt(mean_squared_error(y_test, y_pred))
-        }
-        
-        return model, X.columns, metrics
 
-    except Exception as e:
-        st.error(f"Model training failed: {str(e)}")
-        st.stop()
+# Data preparation
+# Encode X
+encode = ['island', 'sex']
+df_penguins = pd.get_dummies(input_penguins, prefix=encode)
 
-# Main application
-try:
-    df = load_and_clean_data()
-    
-    # Sidebar inputs
-    with st.sidebar:
-        st.header("🔍 Property Details")
-        neighborhood = st.selectbox(
-            "Neighborhood",
-            options=sorted(df['neighborhood_name'].unique())
-        )
-        classification = st.selectbox(
-            "Classification",
-            options=sorted(df['classification_name'].unique())
-        )
-        property_type = st.selectbox(
-            "Property Type",
-            options=sorted(df['property_type_name'].unique())
-        )
-        area = st.slider(
-            "Living Area (m²)",
-            min_value=float(df['area'].quantile(0.05)),
-            max_value=float(df['area'].quantile(0.95)),
-            value=float(df['area'].median()),
-            step=1.0
-        )
+X = df_penguins[1:]
+input_row = df_penguins[:1]
 
-    # Model training
-    model, feature_names, metrics = train_price_model(df)
+# Encode y
+target_mapper = {'Adelie': 0,
+                 'Chinstrap': 1,
+                 'Gentoo': 2}
+def target_encode(val):
+  return target_mapper[val]
 
-    # Prediction
-    input_data = pd.DataFrame([{
-        'neighborhood_name': neighborhood,
-        'classification_name': classification,
-        'property_type_name': property_type,
-        'area': area
-    }])
-    
-    X_input = pd.get_dummies(input_data).reindex(columns=feature_names, fill_value=0)
-    prediction = model.predict(X_input)[0]
-    
-    # Display results
-    col1, col2 = st.columns(2)
-    with col1:
-        st.metric("Predicted Value", f"${prediction:,.0f}")
-    with col2:
-        avg_price = df[df['neighborhood_name'] == neighborhood]['price'].mean()
-        diff = prediction - avg_price
-        st.metric("Neighborhood Average", f"${avg_price:,.0f}", 
-                 delta=f"{diff:+,.0f} vs Average")
+y = y_raw.apply(target_encode)
 
-    # Market insights
-    with st.expander("📊 Market Analysis"):
-        tab1, tab2, tab3 = st.tabs(["Distributions", "Model Metrics", "Comparables"])
-        
-        with tab1:
-            col1, col2 = st.columns(2)
-            with col1:
-                fig = px.histogram(df, x='price', title="Price Distribution")
-                st.plotly_chart(fig)
-            with col2:
-                fig = px.scatter(df, x='area', y='price', color='neighborhood_name',
-                               title="Price vs Area")
-                st.plotly_chart(fig)
-        
-        with tab2:
-            col1, col2, col3 = st.columns(3)
-            col1.metric("R² Score", f"{metrics['r2']:.1%}")
-            col2.metric("MAE", f"${metrics['mae']:,.0f}")
-            col3.metric("RMSE", f"${metrics['rmse']:,.0f}")
-            
-            fig = px.scatter(x=y_test, y=y_pred, 
-                            labels={'x': 'Actual', 'y': 'Predicted'},
-                            title="Actual vs Predicted Prices")
-            fig.add_shape(type="line", x0=y_test.min(), y0=y_test.min(),
-                         x1=y_test.max(), y1=y_test.max())
-            st.plotly_chart(fig)
-        
-        with tab3:
-            similar = df[
-                (df['neighborhood_name'] == neighborhood) &
-                (df['area'].between(area*0.8, area*1.2))
-            ]
-            if not similar.empty:
-                st.dataframe(similar)
-            else:
-                st.info("No comparable properties found")
+with st.expander('Data preparation'):
+  st.write('**Encoded X (input penguin)**')
+  input_row
+  st.write('**Encoded y**')
+  y
 
-except Exception as e:
-    st.error(f"Application error: {str(e)}")
-    st.info("Please check the data source and try again")
+
+# Model training and inference
+## Train the ML model
+clf = RandomForestClassifier()
+clf.fit(X, y)
+
+## Apply model to make predictions
+prediction = clf.predict(input_row)
+prediction_proba = clf.predict_proba(input_row)
+
+df_prediction_proba = pd.DataFrame(prediction_proba)
+df_prediction_proba.columns = ['Adelie', 'Chinstrap', 'Gentoo']
+df_prediction_proba.rename(columns={0: 'Adelie',
+                                 1: 'Chinstrap',
+                                 2: 'Gentoo'})
+
+# Display predicted species
+st.subheader('Predicted Species')
+st.dataframe(df_prediction_proba,
+             column_config={
+               'Adelie': st.column_config.ProgressColumn(
+                 'Adelie',
+                 format='%f',
+                 width='medium',
+                 min_value=0,
+                 max_value=1
+               ),
+               'Chinstrap': st.column_config.ProgressColumn(
+                 'Chinstrap',
+                 format='%f',
+                 width='medium',
+                 min_value=0,
+                 max_value=1
+               ),
+               'Gentoo': st.column_config.ProgressColumn(
+                 'Gentoo',
+                 format='%f',
+                 width='medium',
+                 min_value=0,
+                 max_value=1
+               ),
+             }, hide_index=True)
+
+
+penguins_species = np.array(['Adelie', 'Chinstrap', 'Gentoo'])
+st.success(str(penguins_species[prediction][0]))
