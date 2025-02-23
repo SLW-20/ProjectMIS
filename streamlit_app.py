@@ -1,122 +1,112 @@
-
 import streamlit as st
 import numpy as np
 import pandas as pd
-from sklearn.ensemble import RandomForestClassifier
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.preprocessing import LabelEncoder
 
-st.title('🤖 Machine Learning App')
+# Set page title
+st.title('🏠 Real Estate Price Prediction App')
+st.info('This app predicts real estate prices in Abha!')
 
-st.info('This is app builds a machine learning model!')
-
+# Load and prepare data
 with st.expander('Data'):
-  st.write('**Raw data**')
-  df = pd.read_csv('https://raw.githubusercontent.com/dataprofessor/data/master/penguins_cleaned.csv')
-  df
+    st.write('**Raw data**')
+    df = pd.read_csv('https://raw.githubusercontent.com/1Hani-77/TEST/refs/heads/main/abha%20real%20estate.csv')
+    # Drop any rows with missing values
+    df = df.dropna()
+    st.dataframe(df)
+    
+    st.write('**Features (X)**')
+    X_raw = df.drop(['price', 'description'], axis=1)
+    st.dataframe(X_raw)
+    
+    st.write('**Target (y)**')
+    y_raw = df.price
+    st.dataframe(y_raw)
 
-  st.write('**X**')
-  X_raw = df.drop('species', axis=1)
-  X_raw
-
-  st.write('**y**')
-  y_raw = df.species
-  y_raw
-
+# Data visualization
 with st.expander('Data visualization'):
-  st.scatter_chart(data=df, x='bill_length_mm', y='body_mass_g', color='species')
+    st.scatter_chart(
+        data=df,
+        x='size',
+        y='price',
+        color='property_type'
+    )
 
 # Input features
 with st.sidebar:
-  st.header('Input features')
-  island = st.selectbox('Island', ('Biscoe', 'Dream', 'Torgersen'))
-  bill_length_mm = st.slider('Bill length (mm)', 32.1, 59.6, 43.9)
-  bill_depth_mm = st.slider('Bill depth (mm)', 13.1, 21.5, 17.2)
-  flipper_length_mm = st.slider('Flipper length (mm)', 172.0, 231.0, 201.0)
-  body_mass_g = st.slider('Body mass (g)', 2700.0, 6300.0, 4207.0)
-  gender = st.selectbox('Gender', ('male', 'female'))
-  
-  # Create a DataFrame for the input features
-  data = {'island': island,
-          'bill_length_mm': bill_length_mm,
-          'bill_depth_mm': bill_depth_mm,
-          'flipper_length_mm': flipper_length_mm,
-          'body_mass_g': body_mass_g,
-          'sex': gender}
-  input_df = pd.DataFrame(data, index=[0])
-  input_penguins = pd.concat([input_df, X_raw], axis=0)
+    st.header('Property Features')
+    
+    property_type = st.selectbox('Property Type', 
+                                df['property_type'].unique().tolist())
+    
+    size = st.slider('Size (sq meters)', 
+                     float(df['size'].min()), 
+                     float(df['size'].max()),
+                     float(df['size'].mean()))
+    
+    rooms = st.slider('Number of Rooms',
+                      int(df['rooms'].min()),
+                      int(df['rooms'].max()),
+                      int(df['rooms'].median()))
+    
+    bathrooms = st.slider('Number of Bathrooms',
+                         int(df['bathrooms'].min()),
+                         int(df['bathrooms'].max()),
+                         int(df['bathrooms'].median()))
+    
+    location = st.selectbox('Location',
+                           df['location'].unique().tolist())
+    
+    # Create DataFrame for input features
+    input_data = {
+        'property_type': property_type,
+        'size': size,
+        'rooms': rooms,
+        'bathrooms': bathrooms,
+        'location': location
+    }
+    input_df = pd.DataFrame(input_data, index=[0])
 
+# Show input data
 with st.expander('Input features'):
-  st.write('**Input penguin**')
-  input_df
-  st.write('**Combined penguins data**')
-  input_penguins
-
+    st.write('**Selected Property Features**')
+    st.dataframe(input_df)
 
 # Data preparation
-# Encode X
-encode = ['island', 'sex']
-df_penguins = pd.get_dummies(input_penguins, prefix=encode)
+# Combine input with training data for consistent encoding
+input_properties = pd.concat([input_df, X_raw], axis=0)
 
-X = df_penguins[1:]
-input_row = df_penguins[:1]
+# Encode categorical variables
+le = LabelEncoder()
+categorical_cols = ['property_type', 'location']
 
-# Encode y
-target_mapper = {'Adelie': 0,
-                 'Chinstrap': 1,
-                 'Gentoo': 2}
-def target_encode(val):
-  return target_mapper[val]
+for col in categorical_cols:
+    input_properties[col] = le.fit_transform(input_properties[col])
 
-y = y_raw.apply(target_encode)
+# Separate back into input and training data
+X = input_properties[1:]
+input_row = input_properties[:1]
 
-with st.expander('Data preparation'):
-  st.write('**Encoded X (input penguin)**')
-  input_row
-  st.write('**Encoded y**')
-  y
+# Model training
+# Initialize and train the model
+model = RandomForestRegressor(n_estimators=100, random_state=42)
+model.fit(X, y_raw)
 
+# Make prediction
+prediction = model.predict(input_row)
 
-# Model training and inference
-## Train the ML model
-clf = RandomForestClassifier()
-clf.fit(X, y)
+# Display prediction
+st.subheader('Predicted Price')
+predicted_price = float(prediction[0])
+formatted_price = "{:,.2f}".format(predicted_price)
+st.success(f"Estimated Price: SAR {formatted_price}")
 
-## Apply model to make predictions
-prediction = clf.predict(input_row)
-prediction_proba = clf.predict_proba(input_row)
-
-df_prediction_proba = pd.DataFrame(prediction_proba)
-df_prediction_proba.columns = ['Adelie', 'Chinstrap', 'Gentoo']
-df_prediction_proba.rename(columns={0: 'Adelie',
-                                 1: 'Chinstrap',
-                                 2: 'Gentoo'})
-
-# Display predicted species
-st.subheader('Predicted Species')
-st.dataframe(df_prediction_proba,
-             column_config={
-               'Adelie': st.column_config.ProgressColumn(
-                 'Adelie',
-                 format='%f',
-                 width='medium',
-                 min_value=0,
-                 max_value=1
-               ),
-               'Chinstrap': st.column_config.ProgressColumn(
-                 'Chinstrap',
-                 format='%f',
-                 width='medium',
-                 min_value=0,
-                 max_value=1
-               ),
-               'Gentoo': st.column_config.ProgressColumn(
-                 'Gentoo',
-                 format='%f',
-                 width='medium',
-                 min_value=0,
-                 max_value=1
-               ),
-             }, hide_index=True)
-
-
-penguins_species = np.array(['Adelie', 'Chinstrap', 'Gentoo'])
-st.success(str(penguins_species[prediction][0]))
+# Feature importance
+with st.expander('Feature Importance'):
+    feature_importance = pd.DataFrame({
+        'Feature': input_properties.columns,
+        'Importance': model.feature_importances_
+    })
+    feature_importance = feature_importance.sort_values('Importance', ascending=False)
+    st.bar_chart(feature_importance.set_index('Feature'))
