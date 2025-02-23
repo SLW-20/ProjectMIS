@@ -24,7 +24,7 @@ Explore market dynamics through interactive visualizations.
 @st.cache_data
 def load_and_clean_data():
     """Load and preprocess real estate data with robust type checking"""
-    url = "https://raw.githubusercontent.com/1Hani-77/TEST/main/abha%20real%20estate.csv"
+    url = "https://raw.githubusercontent.com/SLW-20/ProjectMIS/refs/heads/master/abha%20real%20estate.csv"
     
     try:
         df = pd.read_csv(url)
