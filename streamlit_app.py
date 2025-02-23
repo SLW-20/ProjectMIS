@@ -1,197 +1,122 @@
+
 import streamlit as st
 import numpy as np
 import pandas as pd
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
-import plotly.express as px
-import plotly.graph_objects as go
-from streamlit_neumorphic import neumorphic
+from sklearn.ensemble import RandomForestClassifier
 
-# Page configuration
-st.set_page_config(
-    page_title="REALYST | AI Property Valuations",
-    layout="wide",
-    initial_sidebar_state="collapsed",
-    page_icon="🏙️"
-)
+st.title('🤖 Machine Learning App')
 
-# Custom CSS with glassmorphism and animations
-st.markdown(f"""
-<style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;900&display=swap');
-    
-    :root {{
-        --primary: #6C5CE7;
-        --secondary: #A8A5E6;
-        --glass: rgba(255, 255, 255, 0.15);
-        --dark: #2D3436;
-    }}
-    
-    * {{
-        font-family: 'Inter', sans-serif;
-    }}
-    
-    .stApp {{
-        background: linear-gradient(135deg, #2D3436 0%, #000000 100%);
-        color: white !important;
-    }}
-    
-    .glass-card {{
-        background: var(--glass);
-        backdrop-filter: blur(16px);
-        border-radius: 24px;
-        padding: 2rem;
-        margin: 1rem 0;
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
-        border: 1px solid rgba(255, 255, 255, 0.1);
-    }}
-    
-    .stMetric {{
-        background: linear-gradient(45deg, var(--primary), #7C4DFF);
-        color: white !important;
-        border-radius: 16px;
-        padding: 1.5rem;
-        transition: transform 0.3s ease;
-    }}
-    
-    .stMetric:hover {{
-        transform: translateY(-5px);
-    }}
-    
-    .stNumberInput, .stSelectbox, .stSlider {{
-        background: var(--glass) !important;
-        border-radius: 12px !important;
-    }}
-    
-    .price-pulse {{
-        animation: pulse 2s infinite;
-    }}
-    
-    @keyframes pulse {{
-        0% {{ transform: scale(1); }}
-        50% {{ transform: scale(1.05); }}
-        100% {{ transform: scale(1); }}
-    }}
-    
-    .stPlotlyChart {{
-        border-radius: 24px;
-        overflow: hidden;
-    }}
-</style>
-""", unsafe_allow_html=True)
+st.info('This is app builds a machine learning model!')
 
-# Hero Section
-col1, col2 = st.columns([2, 3])
-with col1:
-    st.markdown("<h1 style='font-size:4.5rem; margin:0;'>REALYST</h1>", unsafe_allow_html=True)
-    st.markdown("### AI-Powered Property Intelligence Platform")
-    
-with col2:
-    st.image("https://cdn.dribbble.com/users/753356/screenshots/16934294/media/8b2eac5c3fae5c5e6e7b0b0b0b0b0b0b.png", 
-             use_column_width=True)
+with st.expander('Data'):
+  st.write('**Raw data**')
+  df = pd.read_csv('https://raw.githubusercontent.com/dataprofessor/data/master/penguins_cleaned.csv')
+  df
 
-# Data loading and model code remains similar from original...
+  st.write('**X**')
+  X_raw = df.drop('species', axis=1)
+  X_raw
 
-# Redesigned Input Section
-with st.container():
-    st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
-    st.markdown("### 🧭 Property Parameters")
-    
-    cols = st.columns([2, 2, 2, 1])
-    with cols[0]:
-        neighborhood = st.selectbox("Neighborhood", options=neighborhood_options, 
-                                  help="Select property location")
-    with cols[1]:
-        property_type = st.selectbox("Property Type", options=type_options)
-    with cols[2]:
-        classification = st.selectbox("Classification", options=class_options)
-    with cols[3]:
-        area = st.number_input("Area (m²)", min_value=50, max_value=1000, value=150,
-                             step=10)
-    st.markdown("</div>", unsafe_allow_html=True)
+  st.write('**y**')
+  y_raw = df.species
+  y_raw
 
-# Prediction Display
-prediction = model.predict(...)  # Your existing prediction code
+with st.expander('Data visualization'):
+  st.scatter_chart(data=df, x='bill_length_mm', y='body_mass_g', color='species')
 
-with st.container():
-    col1, col2, col3 = st.columns([1,2,1])
-    with col2:
-        st.markdown(f"""
-        <div class='glass-card' style='text-align: center'>
-            <h3 style='color: var(--secondary)'>VALUATION RESULT</h3>
-            <h1 class='price-pulse' style='font-size:4rem; margin:0; color: var(--primary)'>
-                ${prediction:,.0f}
-            </h1>
-            <div style='margin:1rem 0; height:4px; background: var(--glass);'></div>
-            <div style='display: flex; justify-content: space-between'>
-                <div>📈 Market Trend: +2.4%</div>
-                <div>📅 Last Updated: Today</div>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
+# Input features
+with st.sidebar:
+  st.header('Input features')
+  island = st.selectbox('Island', ('Biscoe', 'Dream', 'Torgersen'))
+  bill_length_mm = st.slider('Bill length (mm)', 32.1, 59.6, 43.9)
+  bill_depth_mm = st.slider('Bill depth (mm)', 13.1, 21.5, 17.2)
+  flipper_length_mm = st.slider('Flipper length (mm)', 172.0, 231.0, 201.0)
+  body_mass_g = st.slider('Body mass (g)', 2700.0, 6300.0, 4207.0)
+  gender = st.selectbox('Gender', ('male', 'female'))
+  
+  # Create a DataFrame for the input features
+  data = {'island': island,
+          'bill_length_mm': bill_length_mm,
+          'bill_depth_mm': bill_depth_mm,
+          'flipper_length_mm': flipper_length_mm,
+          'body_mass_g': body_mass_g,
+          'sex': gender}
+  input_df = pd.DataFrame(data, index=[0])
+  input_penguins = pd.concat([input_df, X_raw], axis=0)
 
-# Advanced Visualizations
-with st.expander("🔮 Market Insights Explorer", expanded=True):
-    tab1, tab2, tab3 = st.tabs(["3D Map", "Price Evolution", "Investment Analysis"])
-    
-    with tab1:
-        fig = px.scatter_3d(df, x='lon', y='lat', z='price',
-                          color='neighborhood', size='area',
-                          hover_name='property_type', 
-                          title="3D Property Landscape")
-        st.plotly_chart(fig, use_container_width=True)
-    
-    with tab2:
-        fig = go.Figure()
-        fig.add_trace(go.Histogram(x=df['price'], name="Price Distribution",
-                                 marker_color=var(--primary)))
-        fig.add_trace(go.Box(x=df['price'], name="Spread", 
-                           marker_color=var(--secondary)))
-        st.plotly_chart(fig, use_container_width=True)
-    
-    with tab3:
-        st.markdown("""
-        <div class='glass-card'>
-            <h4>💰 Investment Potential</h4>
-            <div style='display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem'>
-                <div class='stMetric'>Rental Yield<br><h2>6.8%</h2></div>
-                <div class='stMetric'>Capital Growth<br><h2>+9.2%</h2></div>
-                <div class='stMetric'>ROI (5y)<br><h2>142%</h2></div>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
+with st.expander('Input features'):
+  st.write('**Input penguin**')
+  input_df
+  st.write('**Combined penguins data**')
+  input_penguins
 
-# Neighborhood Comparison
-st.markdown("### 📍 Neighborhood Spotlight")
-cols = st.columns(3)
-for idx, (name, data) in enumerate(neighborhood_data.items()):
-    with cols[idx%3]:
-        with neumorphic(key=f"card_{name}", 
-                      boxShadow="0 8px 32px rgba(0,0,0,0.25)"):
-            st.markdown(f"""
-            <div style='padding:1.5rem; border-radius:16px'>
-                <h4>{name}</h4>
-                <div style='display:flex; justify-content: space-between'>
-                    <div>🏘️ Avg Price</div>
-                    <div>${data['avg_price']:,.0f}</div>
-                </div>
-                <div style='display:flex; justify-content: space-between'>
-                    <div>📉 Price Trend</div>
-                    <div style='color: {'#00E676' if data['trend'] > 0 else '#FF5252'}'>
-                        {data['trend']}%
-                    </div>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
 
-# Footer
-st.markdown("---")
-st.markdown("""
-<div style='text-align: center; padding: 2rem; color: var(--secondary)'>
-    REALYST AI • Property Market Analytics • v2.0<br>
-    <div style='margin-top:1rem; opacity:0.7'>
-        Powered by QuantumML Engine ⚛️
-    </div>
-</div>
-""", unsafe_allow_html=True)
+# Data preparation
+# Encode X
+encode = ['island', 'sex']
+df_penguins = pd.get_dummies(input_penguins, prefix=encode)
+
+X = df_penguins[1:]
+input_row = df_penguins[:1]
+
+# Encode y
+target_mapper = {'Adelie': 0,
+                 'Chinstrap': 1,
+                 'Gentoo': 2}
+def target_encode(val):
+  return target_mapper[val]
+
+y = y_raw.apply(target_encode)
+
+with st.expander('Data preparation'):
+  st.write('**Encoded X (input penguin)**')
+  input_row
+  st.write('**Encoded y**')
+  y
+
+
+# Model training and inference
+## Train the ML model
+clf = RandomForestClassifier()
+clf.fit(X, y)
+
+## Apply model to make predictions
+prediction = clf.predict(input_row)
+prediction_proba = clf.predict_proba(input_row)
+
+df_prediction_proba = pd.DataFrame(prediction_proba)
+df_prediction_proba.columns = ['Adelie', 'Chinstrap', 'Gentoo']
+df_prediction_proba.rename(columns={0: 'Adelie',
+                                 1: 'Chinstrap',
+                                 2: 'Gentoo'})
+
+# Display predicted species
+st.subheader('Predicted Species')
+st.dataframe(df_prediction_proba,
+             column_config={
+               'Adelie': st.column_config.ProgressColumn(
+                 'Adelie',
+                 format='%f',
+                 width='medium',
+                 min_value=0,
+                 max_value=1
+               ),
+               'Chinstrap': st.column_config.ProgressColumn(
+                 'Chinstrap',
+                 format='%f',
+                 width='medium',
+                 min_value=0,
+                 max_value=1
+               ),
+               'Gentoo': st.column_config.ProgressColumn(
+                 'Gentoo',
+                 format='%f',
+                 width='medium',
+                 min_value=0,
+                 max_value=1
+               ),
+             }, hide_index=True)
+
+
+penguins_species = np.array(['Adelie', 'Chinstrap', 'Gentoo'])
+st.success(str(penguins_species[prediction][0]))
