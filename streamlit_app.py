@@ -5,7 +5,6 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
 import plotly.express as px
-import plotly.graph_objects as go
 
 # Page configuration
 st.set_page_config(
@@ -14,141 +13,176 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS with advanced styling
+# Custom CSS for better styling
 st.markdown("""
 <style>
-    :root {
-        --primary: #2A9D8F;
-        --secondary: #264653;
-        --accent: #E9C46A;
-    }
-
     .stApp {
-        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        background-color: #f5f5f5;
     }
-
     .stSidebar {
-        background: var(--secondary) !important;
-        color: white !important;
-        border-right: 1px solid #dee2e6;
+        background-color: #ffffff;
+        box-shadow: 2px 0px 10px rgba(0, 0, 0, 0.1);
     }
-
-    .sidebar .block-container {
-        padding: 2rem 1rem;
+    .stButton>button {
+        background-color: #4CAF50;
+        color: white;
+        border-radius: 5px;
+        padding: 10px 20px;
+        font-size: 16px;
     }
-
-    .stSelectbox, .stSlider {
-        background-color: white;
-        border-radius: 8px;
-        padding: 12px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    .stMetric {
+        background-color: #ffffff;
+        padding: 20px;
+        border-radius: 10px;
+        box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
     }
-
-    .metric-card {
-        background: white;
-        border-radius: 12px;
-        padding: 1.5rem;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-        transition: transform 0.2s;
-    }
-
-    .metric-card:hover {
-        transform: translateY(-2px);
-    }
-
     .stHeader {
-        color: var(--primary);
-        font-weight: 700;
-        letter-spacing: -0.5px;
+        color: #4CAF50;
+        font-size: 24px;
+        font-weight: bold;
     }
-
     .stDataFrame {
-        border-radius: 12px;
-        overflow: hidden;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-    }
-
-    .st-expander {
-        background: white;
-        border-radius: 12px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-    }
-
-    .plot-container {
-        border-radius: 12px;
-        overflow: hidden;
-        background: white;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        border-radius: 10px;
+        box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
     }
 </style>
 """, unsafe_allow_html=True)
 
-# App header with gradient
+# App title and description
+st.title('🏠 AI-Powered Property Valuation')
 st.markdown("""
-<div style="background: linear-gradient(135deg, var(--primary), var(--secondary));
-            padding: 2rem;
-            border-radius: 0 0 20px 20px;
-            color: white;
-            margin-bottom: 2rem;">
-    <h1 style="margin:0; font-size: 2.5rem;">🏡 Smart Property Valuator</h1>
-    <p style="opacity: 0.9; margin: 0.5rem 0 0;">AI-powered real estate valuation platform with market insights</p>
-</div>
-""", unsafe_allow_html=True)
+**Predict property prices** based on location, features, and market trends.
+Explore market dynamics through interactive visualizations.
+""")
 
-# Data loading and preprocessing (unchanged from previous version)
+# Data loading and preprocessing with enhanced validation
 @st.cache_data
 def load_and_clean_data():
-    # ... (same as before) ...
+    """Load and preprocess real estate data with robust type checking"""
+    url = "https://raw.githubusercontent.com/1Hani-77/TEST/main/abha%20real%20estate.csv"
+    
+    try:
+        df = pd.read_csv(url)
+        
+        # Validate required columns
+        required_columns = ['neighborhood_name', 'classification_name', 
+                           'property_type_name', 'area', 'price']
+        missing = [col for col in required_columns if col not in df.columns]
+        if missing:
+            raise ValueError(f"Missing columns: {', '.join(missing)}")
 
-# Model training pipeline (unchanged from previous version)
+        # Enhanced numeric conversion with error tracking
+        numeric_cols = ['price', 'area']
+        
+        for col in numeric_cols:
+            # Remove non-numeric characters and convert to float
+            df[col] = (
+                df[col]
+                .astype(str)
+                .str.replace(r'[^\d.]', '', regex=True)
+                .replace({'': np.nan, 'nan': np.nan, 'None': np.nan})
+                .apply(pd.to_numeric, errors='coerce')
+            )
+            
+        # Remove rows with invalid numeric values
+        df_clean = df.dropna(subset=numeric_cols).copy()
+        
+        # Validate numeric columns
+        for col in numeric_cols:
+            if not np.issubdtype(df_clean[col].dtype, np.number):
+                raise TypeError(f"Column {col} contains non-numeric values after cleaning")
+
+        # Calculate IQR ranges using clean numeric data
+        Q1 = df_clean[numeric_cols].quantile(0.05)
+        Q3 = df_clean[numeric_cols].quantile(0.95)
+        IQR = Q3 - Q1
+
+        # Identify outliers with proper parentheses
+        outlier_mask = (
+            (df_clean[numeric_cols] < (Q1 - 1.5 * IQR)) | 
+            (df_clean[numeric_cols] > (Q3 + 1.5 * IQR))
+        ).any(axis=1)
+
+        final_df = df_clean[~outlier_mask]
+        
+        # Post-cleaning validation
+        if final_df.empty:
+            raise ValueError("No valid data remaining after cleaning")
+            
+        return final_df
+
+    except Exception as e:
+        st.error(f"Data processing error: {str(e)}")
+        st.stop()
+
+# Model training pipeline (corrected indentation)
 @st.cache_resource
 def train_price_model(_df):
-    # ... (same as before) ...
+    """Train and evaluate pricing model with data validation"""
+    try:
+        X = pd.get_dummies(
+            _df[['neighborhood_name', 'classification_name', 
+                'property_type_name', 'area']],
+            drop_first=True
+        )
+        y = _df['price'].astype(float)
+        
+        X_train, X_test, y_train, y_test = train_test_split(
+            X, y, test_size=0.2, random_state=42
+        )
+        
+        model = RandomForestRegressor(
+            n_estimators=200,
+            max_depth=20,
+            random_state=42,
+            n_jobs=-1
+        )
+        model.fit(X_train, y_train)
+        
+        y_pred = model.predict(X_test)
+        metrics = {
+            'r2': r2_score(y_test, y_pred),
+            'mae': mean_absolute_error(y_test, y_pred),
+            'rmse': np.sqrt(mean_squared_error(y_test, y_pred))
+        }
+        
+        return model, X.columns, metrics
+
+    except Exception as e:
+        st.error(f"Model training failed: {str(e)}")
+        st.stop()
 
 # Main application
 try:
     df = load_and_clean_data()
     
-    # Sidebar with enhanced styling
+    # Sidebar inputs
     with st.sidebar:
-        st.markdown("""
-        <div style="padding: 1rem 0;">
-            <h2 style="color: white; border-bottom: 2px solid var(--accent); 
-                padding-bottom: 0.5rem;">🏠 Property Details</h2>
-        </div>
-        """, unsafe_allow_html=True)
-        
+        st.header("🔍 Property Details")
         neighborhood = st.selectbox(
-            "Neighborhood District",
-            options=sorted(df['neighborhood_name'].unique()),
-            help="Select the property's neighborhood location"
+            "Neighborhood",
+            options=sorted(df['neighborhood_name'].unique())
         )
-
         classification = st.selectbox(
-            "Property Class",
-            options=sorted(df['classification_name'].unique()),
-            help="Choose the property classification type"
+            "Classification",
+            options=sorted(df['classification_name'].unique())
         )
-
         property_type = st.selectbox(
-            "Property Category",
-            options=sorted(df['property_type_name'].unique()),
-            help="Select the type of property"
+            "Property Type",
+            options=sorted(df['property_type_name'].unique())
         )
-
         area = st.slider(
             "Living Area (m²)",
             min_value=float(df['area'].quantile(0.05)),
             max_value=float(df['area'].quantile(0.95)),
             value=float(df['area'].median()),
-            step=1.0,
-            help="Adjust the total living area"
+            step=1.0
         )
 
     # Model training
     model, feature_names, metrics = train_price_model(df)
 
-    # Prediction section
+    # Prediction
     input_data = pd.DataFrame([{
         'neighborhood_name': neighborhood,
         'classification_name': classification,
@@ -159,142 +193,52 @@ try:
     X_input = pd.get_dummies(input_data).reindex(columns=feature_names, fill_value=0)
     prediction = model.predict(X_input)[0]
     
-    # Display results with animated cards
-    col1, col2, col3 = st.columns([2,1,2])
+    # Display results
+    col1, col2 = st.columns(2)
     with col1:
-        st.markdown(f"""
-        <div class="metric-card">
-            <h3 style="color: var(--secondary); margin: 0 0 1rem;">Predicted Value</h3>
-            <div style="font-size: 2.5rem; color: var(--primary); font-weight: 700;">
-                ${prediction:,.0f}
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-        
-    with col3:
+        st.metric("Predicted Value", f"${prediction:,.0f}")
+    with col2:
         avg_price = df[df['neighborhood_name'] == neighborhood]['price'].mean()
         diff = prediction - avg_price
-        st.markdown(f"""
-        <div class="metric-card">
-            <h3 style="color: var(--secondary); margin: 0 0 1rem;">Market Comparison</h3>
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-                <div>
-                    <div style="font-size: 1.2rem;">Neighborhood Average</div>
-                    <div style="font-size: 1.5rem; color: var(--primary);">${avg_price:,.0f}</div>
-                </div>
-                <div style="background: {'#2a9d8f20' if diff > 0 else '#e76f5120'}; 
-                    padding: 0.5rem 1rem; border-radius: 8px;">
-                    <span style="color: {'var(--primary)' if diff > 0 else '#e76f51'}; 
-                        font-weight: 700;">{diff:+,.0f}</span>
-                </div>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
+        st.metric("Neighborhood Average", f"${avg_price:,.0f}", 
+                 delta=f"{diff:+,.0f} vs Average")
 
-    # Market insights with enhanced visualizations
-    with st.expander("📈 Advanced Market Analytics", expanded=True):
-        tab1, tab2, tab3 = st.tabs(["Price Analysis", "Model Performance", "Comparable Properties"])
+    # Market insights
+    with st.expander("📊 Market Analysis"):
+        tab1, tab2, tab3 = st.tabs(["Distributions", "Model Metrics", "Comparables"])
         
         with tab1:
             col1, col2 = st.columns(2)
             with col1:
-                st.markdown("### Price Distribution Analysis")
-                fig = px.histogram(df, x='price', 
-                                 nbins=50, 
-                                 color_discrete_sequence=['var(--primary)'],
-                                 template='plotly_white')
-                fig.update_layout(
-                    hoverlabel=dict(bgcolor="white", font_size=12),
-                    xaxis_title="Price (USD)",
-                    yaxis_title="Number of Properties"
-                )
-                st.plotly_chart(fig, use_container_width=True)
-
+                fig = px.histogram(df, x='price', title="Price Distribution")
+                st.plotly_chart(fig)
             with col2:
-                st.markdown("### Price vs Area Correlation")
-                fig = px.scatter(df, x='area', y='price',
-                               color='neighborhood_name',
-                               trendline="lowess",
-                               color_discrete_sequence=px.colors.qualitative.Pastel,
-                               template='plotly_white')
-                fig.update_traces(marker=dict(size=8, opacity=0.6))
-                fig.update_layout(
-                    hovermode='closest',
-                    xaxis_title="Area (m²)",
-                    yaxis_title="Price (USD)",
-                    legend_title="Neighborhood"
-                )
-                st.plotly_chart(fig, use_container_width=True)
-
+                fig = px.scatter(df, x='area', y='price', color='neighborhood_name',
+                               title="Price vs Area")
+                st.plotly_chart(fig)
+        
         with tab2:
-            col1, col2 = st.columns(2)
-            with col1:
-                st.markdown("### Model Accuracy Metrics")
-                fig = go.Figure()
-                fig.add_trace(go.Indicator(
-                    mode="number",
-                    value=metrics['r2'],
-                    number={'font': {'color': 'var(--primary)'}, 'valueformat': '.0%'},
-                    title={'text': "R² Score"},
-                    domain={'row': 0, 'column': 0}
-                ))
-                fig.add_trace(go.Indicator(
-                    mode="number",
-                    value=metrics['mae'],
-                    number={'prefix': "$", 'font': {'color': 'var(--primary)'}},
-                    title={'text': "MAE"},
-                    domain={'row': 0, 'column': 1}
-                ))
-                fig.add_trace(go.Indicator(
-                    mode="number",
-                    value=metrics['rmse'],
-                    number={'prefix': "$", 'font': {'color': 'var(--primary)'}},
-                    title={'text': "RMSE"},
-                    domain={'row': 0, 'column': 2}
-                ))
-                fig.update_layout(
-                    grid={'rows': 1, 'columns': 3, 'pattern': "independent"},
-                    template='plotly_white',
-                    height=200
-                )
-                st.plotly_chart(fig, use_container_width=True)
-
-            with col2:
-                st.markdown("### Prediction Accuracy")
-                fig = px.scatter(x=y_test, y=y_pred, 
-                                labels={'x': 'Actual Prices', 'y': 'Predicted Prices'},
-                                trendline="lowess",
-                                color_discrete_sequence=['var(--primary)'],
-                                template='plotly_white')
-                fig.add_shape(type="line", x0=y_test.min(), y0=y_test.min(),
-                            x1=y_test.max(), y1=y_test.max(),
-                            line=dict(color="var(--accent)", dash="dash"))
-                fig.update_layout(
-                    hoverlabel=dict(bgcolor="white"),
-                    xaxis_title="Actual Price (USD)",
-                    yaxis_title="Predicted Price (USD)"
-                )
-                st.plotly_chart(fig, use_container_width=True)
-
+            col1, col2, col3 = st.columns(3)
+            col1.metric("R² Score", f"{metrics['r2']:.1%}")
+            col2.metric("MAE", f"${metrics['mae']:,.0f}")
+            col3.metric("RMSE", f"${metrics['rmse']:,.0f}")
+            
+            fig = px.scatter(x=y_test, y=y_pred, 
+                            labels={'x': 'Actual', 'y': 'Predicted'},
+                            title="Actual vs Predicted Prices")
+            fig.add_shape(type="line", x0=y_test.min(), y0=y_test.min(),
+                         x1=y_test.max(), y1=y_test.max())
+            st.plotly_chart(fig)
+        
         with tab3:
             similar = df[
                 (df['neighborhood_name'] == neighborhood) &
                 (df['area'].between(area*0.8, area*1.2))
-            ].sort_values('price', ascending=False)
-            
+            ]
             if not similar.empty:
-                st.markdown(f"**Found {len(similar)} Comparable Properties**")
-                styled_df = similar.style \
-                    .background_gradient(subset=['price'], cmap='YlGnBu') \
-                    .format({'price': '${:,.0f}', 'area': '{:,.0f}m²'}) \
-                    .set_properties(**{'text-align': 'left', 'padding': '12px'}) \
-                    .set_table_styles([{
-                        'selector': 'thead',
-                        'props': [('background', 'var(--primary)'), ('color', 'white')]
-                    }])
-                st.write(styled_df.to_html(), unsafe_allow_html=True)
+                st.dataframe(similar)
             else:
-                st.info("No comparable properties found in this area range")
+                st.info("No comparable properties found")
 
 except Exception as e:
     st.error(f"Application error: {str(e)}")
