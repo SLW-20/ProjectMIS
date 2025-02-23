@@ -13,6 +13,41 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# Custom CSS for better styling
+st.markdown("""
+<style>
+    .stApp {
+        background-color: #f5f5f5;
+    }
+    .stSidebar {
+        background-color: #ffffff;
+        box-shadow: 2px 0px 10px rgba(0, 0, 0, 0.1);
+    }
+    .stButton>button {
+        background-color: #4CAF50;
+        color: white;
+        border-radius: 5px;
+        padding: 10px 20px;
+        font-size: 16px;
+    }
+    .stMetric {
+        background-color: #ffffff;
+        padding: 20px;
+        border-radius: 10px;
+        box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
+    }
+    .stHeader {
+        color: #4CAF50;
+        font-size: 24px;
+        font-weight: bold;
+    }
+    .stDataFrame {
+        border-radius: 10px;
+        box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
+    }
+</style>
+""", unsafe_allow_html=True)
+
 # App title and description
 st.title('🏠 AI-Powered Property Valuation')
 st.markdown("""
@@ -161,12 +196,14 @@ try:
     # Display results
     col1, col2 = st.columns(2)
     with col1:
-        st.metric("Predicted Value", f"${prediction:,.0f}")
+        st.markdown("### Predicted Value")
+        st.markdown(f"<div class='stMetric'>${prediction:,.0f}</div>", unsafe_allow_html=True)
     with col2:
         avg_price = df[df['neighborhood_name'] == neighborhood]['price'].mean()
         diff = prediction - avg_price
-        st.metric("Neighborhood Average", f"${avg_price:,.0f}", 
-                 delta=f"{diff:+,.0f} vs Average")
+        st.markdown("### Neighborhood Average")
+        st.markdown(f"<div class='stMetric'>${avg_price:,.0f}</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='stMetric'>Difference: {diff:+,.0f}</div>", unsafe_allow_html=True)
 
     # Market insights
     with st.expander("📊 Market Analysis"):
@@ -175,22 +212,25 @@ try:
         with tab1:
             col1, col2 = st.columns(2)
             with col1:
-                fig = px.histogram(df, x='price', title="Price Distribution")
+                fig = px.histogram(df, x='price', title="Price Distribution", color_discrete_sequence=['#4CAF50'])
                 st.plotly_chart(fig)
             with col2:
                 fig = px.scatter(df, x='area', y='price', color='neighborhood_name',
-                               title="Price vs Area")
+                               title="Price vs Area", color_discrete_sequence=px.colors.qualitative.Pastel)
                 st.plotly_chart(fig)
         
         with tab2:
             col1, col2, col3 = st.columns(3)
-            col1.metric("R² Score", f"{metrics['r2']:.1%}")
-            col2.metric("MAE", f"${metrics['mae']:,.0f}")
-            col3.metric("RMSE", f"${metrics['rmse']:,.0f}")
+            col1.markdown("### R² Score")
+            col1.markdown(f"<div class='stMetric'>{metrics['r2']:.1%}</div>", unsafe_allow_html=True)
+            col2.markdown("### MAE")
+            col2.markdown(f"<div class='stMetric'>${metrics['mae']:,.0f}</div>", unsafe_allow_html=True)
+            col3.markdown("### RMSE")
+            col3.markdown(f"<div class='stMetric'>${metrics['rmse']:,.0f}</div>", unsafe_allow_html=True)
             
             fig = px.scatter(x=y_test, y=y_pred, 
                             labels={'x': 'Actual', 'y': 'Predicted'},
-                            title="Actual vs Predicted Prices")
+                            title="Actual vs Predicted Prices", color_discrete_sequence=['#4CAF50'])
             fig.add_shape(type="line", x0=y_test.min(), y0=y_test.min(),
                          x1=y_test.max(), y1=y_test.max())
             st.plotly_chart(fig)
@@ -201,7 +241,7 @@ try:
                 (df['area'].between(area*0.8, area*1.2))
             ]
             if not similar.empty:
-                st.dataframe(similar)
+                st.dataframe(similar.style.set_properties(**{'background-color': '#f5f5f5', 'border-radius': '10px'}))
             else:
                 st.info("No comparable properties found")
 
