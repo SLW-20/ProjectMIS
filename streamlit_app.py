@@ -14,7 +14,7 @@ st.set_page_config(
 )
 
 # App title and description
-st.title('🏠 AI-Powered Property Valuation')
+st.title('Abha Real Estate')
 st.markdown("""
 **Predict property prices** based on location, features, and market trends.
 Explore market dynamics through interactive visualizations.
