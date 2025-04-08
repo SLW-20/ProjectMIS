@@ -16,7 +16,7 @@ st.info('This app predicts real estate prices based on property features!')
 @st.cache_data
 def load_data():
     # Replace this URL with your GitHub raw data URL
-    url = "https://raw.githubusercontent.com/1Hani-77/TEST/refs/heads/main/abha%20real%20estate.csv"
+    url = "https://raw.githubusercontent.com/SLW-20/ProjectMIS/refs/heads/master/abha%20real%20estate.csv"
     df = pd.read_csv(url)
     
     # Data validation
