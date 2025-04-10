@@ -5,9 +5,6 @@ import pandas as pd
 from sklearn.ensemble import RandomForestRegressor
 import plotly.express as px
 
-# عرض شعار جامعة الملك خالد
-st.image("images/kku.logo.jpg", width=150)
-
 # Page config
 st.set_page_config(page_title="Real Estate Price Prediction", layout="wide")
 
@@ -112,7 +109,6 @@ if not df.empty:
             'area': area
         }])
 
-Mohammed, [10/10/46 08:57 م]
 # Generate dummy features
         input_processed = pd.get_dummies(input_df, drop_first=True)
         
