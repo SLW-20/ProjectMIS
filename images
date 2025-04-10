@@ -1,2 +1,2 @@
-st.image("images/kku.logo", width=150)
+st.image("images/kku.logo.png", width=150)
 
