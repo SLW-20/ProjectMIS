@@ -1,3 +1,4 @@
+Mohammed, [10/10/46 08:57 م]
 import streamlit as st
 import numpy as np
 import pandas as pd
@@ -108,6 +109,7 @@ if not df.empty:
             'area': area
         }])
 
+Mohammed, [10/10/46 08:57 م]
 # Generate dummy features
         input_processed = pd.get_dummies(input_df, drop_first=True)
         
