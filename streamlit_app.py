@@ -1,4 +1,4 @@
-Mohammed, [10/10/46 08:57 م]
+
 import streamlit as st
 import numpy as np
 import pandas as pd
