@@ -5,8 +5,6 @@ import pandas as pd
 from sklearn.ensemble import RandomForestRegressor
 import plotly.express as px
 
-st.image("images/kku.logo.jpg", width=150)
-
 # Page config
 st.set_page_config(page_title="Real Estate Price Prediction", layout="wide")
 
