@@ -1,18 +1,9 @@
+Mohammed, [10/10/46 08:57 م]
 import streamlit as st
+import numpy as np
 import pandas as pd
-from supabase import create_client, Client
 from sklearn.ensemble import RandomForestRegressor
 import plotly.express as px
-
-# بيانات الاتصال بـ Supabase
-SUPABASE_URL = "https://imdnhiwyfgjdgextvrkj.supabase.co"
-SUPABASE_API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImltZG5oaXd5ZmdqZGdleHR2cmtqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mzk3MTM5NzksImV4cCI6MjA1NTI4OTk3OX0.9hIzkJYKrOTsKTKwjAyHRWBG2Rqe2Sgwq7WgddqLTDk"
-
-# إنشاء العميل Supabase
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_API_KEY)
-
-# أسماء الجداول – ضيفها هنا يدويًا
-table_names = ["students", "grades", "real_estate_data"]  # استبدلها باسم الجدول الذي يحتوي على البيانات العقارية
 
 # Page config
 st.set_page_config(page_title="Real Estate Price Prediction", layout="wide")
@@ -21,26 +12,25 @@ st.set_page_config(page_title="Real Estate Price Prediction", layout="wide")
 st.title('🏠 Real Estate Price Prediction App')
 st.info('This app predicts real estate prices based on property features!')
 
-# تحميل البيانات من Supabase
+# Load data from GitHub
 @st.cache_data
-def load_data_from_supabase(table_name):
+def load_data():
     try:
-        # استعلام لجلب البيانات من الجدول المحدد
-        response = supabase.table(table_name).select("*").execute()
-        df = pd.DataFrame(response.data)
+        url = "https://raw.githubusercontent.com/SLW-20/ProjectMIS/refs/heads/master/abha%20real%20estate.csv"
+        df = pd.read_csv(url)
         
-        # التحقق من الأعمدة المطلوبة
+        # Data validation
         required_columns = ['neighborhood_name', 'classification_name', 
-                            'property_type_name', 'area', 'price']
+                          'property_type_name', 'area', 'price']
         for col in required_columns:
             if col not in df.columns:
                 raise ValueError(f"Missing required column: {col}")
-
-        # تحويل السعر والمساحة إلى قيم عددية
+        
+        # Convert price and area to numeric
         df['price'] = pd.to_numeric(df['price'].astype(str).str.replace(r'[^\d.]', '', regex=True), errors='coerce')
         df['area'] = pd.to_numeric(df['area'].astype(str).str.replace(r'[^\d.]', '', regex=True), errors='coerce')
-
-        # تنظيف البيانات
+        
+        # Clean data
         df = df.dropna(subset=['price', 'area'])
         if df.empty:
             raise ValueError("No valid data remaining after cleaning")
@@ -50,11 +40,7 @@ def load_data_from_supabase(table_name):
         st.error(f"Data loading failed: {str(e)}")
         return pd.DataFrame()
 
-# اختيار الجدول من Supabase
-selected_table = st.selectbox("اختر جدول لعرض البيانات:", table_names)
-
-# تحميل البيانات من الجدول المحدد
-df = load_data_from_supabase(selected_table)
+df = load_data()
 
 if not df.empty:
     st.success("Data loaded successfully!")
@@ -97,7 +83,8 @@ if not df.empty:
                         min_value=area_min, 
                         max_value=area_max,
                         value=default_area)
-# Model training
+
+    # Model training
     @st.cache_resource
     def train_model(data):
         try:
@@ -122,7 +109,8 @@ if not df.empty:
             'area': area
         }])
 
-        # Generate dummy features
+Mohammed, [10/10/46 08:57 م]
+# Generate dummy features
         input_processed = pd.get_dummies(input_df, drop_first=True)
         
         # Align with training features
