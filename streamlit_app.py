@@ -108,7 +108,7 @@ if not df.empty:
             'area': area
         }])
 
-# Generate dummy features
+        # Generate dummy features
         input_processed = pd.get_dummies(input_df, drop_first=True)
         
         # Align with training features
@@ -120,7 +120,7 @@ if not df.empty:
         # Make prediction
         try:
             prediction = model.predict(input_processed)[0]
-            st.markdown(f"## Predicted Price: ${prediction:,.2f}")
+            st.markdown(f"## Predicted Price: **${prediction:,.2f}**")
             
             # Feature importance
             with st.expander("Feature Importance"):
