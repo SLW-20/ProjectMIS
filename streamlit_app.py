@@ -3,6 +3,8 @@ import numpy as np
 import pandas as pd
 from sklearn.ensemble import RandomForestRegressor
 import plotly.express as px
+from supabase import create_client
+import os
 
 # Page config
 st.set_page_config(page_title="Real Estate Price Prediction", layout="wide")
@@ -11,12 +13,33 @@ st.set_page_config(page_title="Real Estate Price Prediction", layout="wide")
 st.title('🏠 Real Estate Price Prediction App')
 st.info('This app predicts real estate prices based on property features!')
 
-# Load data from GitHub
-@st.cache_data
+# Supabase connection
+@st.cache_resource
+def init_connection():
+    # Using the provided Supabase credentials
+    supabase_url = "https://imdnhiwyfgjdgextvrkj.supabase.co"
+    supabase_key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImltZG5oaXd5ZmdqZGdleHR2cmtqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mzk3MTM5NzksImV4cCI6MjA1NTI4OTk3OX0.9hIzkJYKrOTsKTKwjAyHRWBG2Rqe2Sgwq7WgddqLTDk"
+    
+    try:
+        return create_client(supabase_url, supabase_key)
+    except Exception as e:
+        st.error(f"Failed to connect to Supabase: {str(e)}")
+        return None
+
+# Load data from Supabase
+@st.cache_data(ttl=600)  # Cache for 10 minutes
 def load_data():
     try:
-        url = "https://raw.githubusercontent.com/SLW-20/ProjectMIS/refs/heads/master/abha%20real%20estate.csv"
-        df = pd.read_csv(url)
+        # Initialize Supabase client
+        supabase = init_connection()
+        if not supabase:
+            return pd.DataFrame()
+        
+        # Fetch data from the 'real_estate' table (adjust table name as needed)
+        response = supabase.table('real_estate').select('*').execute()
+        
+        # Convert to DataFrame
+        df = pd.DataFrame(response.data)
         
         # Data validation
         required_columns = ['neighborhood_name', 'classification_name', 
@@ -25,9 +48,9 @@ def load_data():
             if col not in df.columns:
                 raise ValueError(f"Missing required column: {col}")
         
-        # Convert price and area to numeric
-        df['price'] = pd.to_numeric(df['price'].astype(str).str.replace(r'[^\d.]', '', regex=True), errors='coerce')
-        df['area'] = pd.to_numeric(df['area'].astype(str).str.replace(r'[^\d.]', '', regex=True), errors='coerce')
+        # Convert price and area to numeric if needed
+        df['price'] = pd.to_numeric(df['price'], errors='coerce')
+        df['area'] = pd.to_numeric(df['area'], errors='coerce')
         
         # Clean data
         df = df.dropna(subset=['price', 'area'])
@@ -39,10 +62,16 @@ def load_data():
         st.error(f"Data loading failed: {str(e)}")
         return pd.DataFrame()
 
+# Initialize a placeholder for database connection status
+if 'db_connected' not in st.session_state:
+    st.session_state['db_connected'] = False
+
+# Load data
 df = load_data()
 
 if not df.empty:
-    st.success("Data loaded successfully!")
+    st.session_state['db_connected'] = True
+    st.success("Data loaded successfully from Supabase!")
     
     # Data Overview
     with st.expander("Data Overview"):
@@ -146,4 +175,36 @@ if not df.empty:
             st.warning("No similar properties found in this neighborhood")
 
 else:
-    st.error("Failed to load data. Please check the data source and try again.")
+    st.error("Failed to load data from Supabase. Please check your database connection and table structure.")
+    
+    # Display configuration help if not connected
+    if not st.session_state['db_connected']:
+        st.warning("""
+        ### Supabase Table Setup Guide
+        
+        It appears your connection to Supabase is not returning any data. Make sure you've:
+        
+        1. Created a 'real_estate' table in your Supabase project with these columns:
+           - neighborhood_name (text)
+           - classification_name (text)
+           - property_type_name (text)
+           - area (numeric)
+           - price (numeric)
+        
+        2. Imported your real estate data into the table
+        
+        You can create this table with the following SQL:
+        
+        ```sql
+        CREATE TABLE real_estate (
+          id SERIAL PRIMARY KEY,
+          neighborhood_name TEXT NOT NULL,
+          classification_name TEXT NOT NULL,
+          property_type_name TEXT NOT NULL,
+          area NUMERIC NOT NULL,
+          price NUMERIC NOT NULL
+        );
+        ```
+        
+        3. Verify your table name matches 'real_estate' in the code (or update the code to match your table name)
+        """)
