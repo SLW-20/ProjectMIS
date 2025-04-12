@@ -11,6 +11,8 @@ SUPABASE_API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSI
 # إنشاء العميل Supabase
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_API_KEY)
 
+# أسماء الجداول – ضيفها هنا يدويًا
+table_names = ["students", "grades", "real_estate_data"]  # استبدلها باسم الجدول الذي يحتوي على البيانات العقارية
 
 # Page config
 st.set_page_config(page_title="Real Estate Price Prediction", layout="wide")
@@ -95,7 +97,6 @@ if not df.empty:
                         min_value=area_min, 
                         max_value=area_max,
                         value=default_area)
-
 # Model training
     @st.cache_resource
     def train_model(data):
