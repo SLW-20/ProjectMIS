@@ -35,8 +35,8 @@ def load_data():
         if not supabase:
             return pd.DataFrame()
         
-        # Fetch data from the 'real_estate' table (adjust table name as needed)
-        response = supabase.table('real_estate').select('*').execute()
+        # Fetch data from the 'properties' table
+        response = supabase.table('properties').select('*').execute()
         
         # Convert to DataFrame
         df = pd.DataFrame(response.data)
@@ -180,31 +180,20 @@ else:
     # Display configuration help if not connected
     if not st.session_state['db_connected']:
         st.warning("""
-        ### Supabase Table Setup Guide
+        ### Supabase Table Check
         
-        It appears your connection to Supabase is not returning any data. Make sure you've:
+        It appears your connection to Supabase is not returning any data. Make sure:
         
-        1. Created a 'real_estate' table in your Supabase project with these columns:
+        1. Your 'properties' table exists and contains these required columns:
            - neighborhood_name (text)
            - classification_name (text)
            - property_type_name (text)
            - area (numeric)
            - price (numeric)
         
-        2. Imported your real estate data into the table
+        2. The table has data imported into it
         
-        You can create this table with the following SQL:
+        3. Column names exactly match those listed above (case-sensitive)
         
-        ```sql
-        CREATE TABLE real_estate (
-          id SERIAL PRIMARY KEY,
-          neighborhood_name TEXT NOT NULL,
-          classification_name TEXT NOT NULL,
-          property_type_name TEXT NOT NULL,
-          area NUMERIC NOT NULL,
-          price NUMERIC NOT NULL
-        );
-        ```
-        
-        3. Verify your table name matches 'real_estate' in the code (or update the code to match your table name)
+        4. You have proper permissions set up in Supabase
         """)
