@@ -12,7 +12,7 @@ SUPABASE_API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSI
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_API_KEY)
 
 # أسماء الجداول – ضيفها هنا يدويًا
-table_names = ["students", "grades", "real_estate_data"]  # استبدلها باسم الجدول الذي يحتوي على البيانات العقارية
+table_names = ["properties", "neighborhoods", "property_classifications", "property_type"]  # استبدلها باسم الجدول الذي يحتوي على البيانات العقارية
 
 # Page config
 st.set_page_config(page_title="Real Estate Price Prediction", layout="wide")
