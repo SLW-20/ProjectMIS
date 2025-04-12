@@ -1,164 +1,121 @@
 import streamlit as st
+import numpy as np
 import pandas as pd
-from supabase import create_client, Client
-from sklearn.ensemble import RandomForestRegressor
-import plotly.express as px
+from sklearn.ensemble import RandomForestClassifier
 
-# بيانات الاتصال بـ Supabase
-SUPABASE_URL = "https://imdnhiwyfgjdgextvrkj.supabase.co"
-SUPABASE_API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImltZG5oaXd5ZmdqZGdleHR2cmtqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mzk3MTM5NzksImV4cCI6MjA1NTI4OTk3OX0.9hIzkJYKrOTsKTKwjAyHRWBG2Rqe2Sgwq7WgddqLTDk"
+st.title('🤖 Machine Learning App')
 
-# إنشاء العميل Supabase
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_API_KEY)
+st.info('This is app builds a machine learning model!')
 
-# أسماء الجداول – ضيفها هنا يدويًا
-table_names = ["properties", "neighborhoods", "property_classifications", "property_type"]  # استبدلها باسم الجدول الذي يحتوي على البيانات العقارية
+with st.expander('Data'):
+  st.write('**Raw data**')
+  df = pd.read_csv('https://raw.githubusercontent.com/dataprofessor/data/master/penguins_cleaned.csv')
+  df
 
-# Page config
-st.set_page_config(page_title="Real Estate Price Prediction", layout="wide")
+  st.write('**X**')
+  X_raw = df.drop('species', axis=1)
+  X_raw
 
-# App title
-st.title('🏠 Real Estate Price Prediction App')
-st.info('This app predicts real estate prices based on property features!')
+  st.write('**y**')
+  y_raw = df.species
+  y_raw
 
-# تحميل البيانات من Supabase
-@st.cache_data
-def load_data_from_supabase(table_name):
-    try:
-        # استعلام لجلب البيانات من الجدول المحدد
-        response = supabase.table(table_name).select("*").execute()
-        df = pd.DataFrame(response.data)
-        
-        # التحقق من الأعمدة المطلوبة
-        required_columns = ['neighborhood_name', 'classification_name', 
-                            'property_type_name', 'area', 'price']
-        for col in required_columns:
-            if col not in df.columns:
-                raise ValueError(f"Missing required column: {col}")
+with st.expander('Data visualization'):
+  st.scatter_chart(data=df, x='bill_length_mm', y='body_mass_g', color='species')
 
-        # تحويل السعر والمساحة إلى قيم عددية
-        df['price'] = pd.to_numeric(df['price'].astype(str).str.replace(r'[^\d.]', '', regex=True), errors='coerce')
-        df['area'] = pd.to_numeric(df['area'].astype(str).str.replace(r'[^\d.]', '', regex=True), errors='coerce')
+# Input features
+with st.sidebar:
+  st.header('Input features')
+  island = st.selectbox('Island', ('Biscoe', 'Dream', 'Torgersen'))
+  bill_length_mm = st.slider('Bill length (mm)', 32.1, 59.6, 43.9)
+  bill_depth_mm = st.slider('Bill depth (mm)', 13.1, 21.5, 17.2)
+  flipper_length_mm = st.slider('Flipper length (mm)', 172.0, 231.0, 201.0)
+  body_mass_g = st.slider('Body mass (g)', 2700.0, 6300.0, 4207.0)
+  gender = st.selectbox('Gender', ('male', 'female'))
+  
+  # Create a DataFrame for the input features
+  data = {'island': island,
+          'bill_length_mm': bill_length_mm,
+          'bill_depth_mm': bill_depth_mm,
+          'flipper_length_mm': flipper_length_mm,
+          'body_mass_g': body_mass_g,
+          'sex': gender}
+  input_df = pd.DataFrame(data, index=[0])
+  input_penguins = pd.concat([input_df, X_raw], axis=0)
 
-        # تنظيف البيانات
-        df = df.dropna(subset=['price', 'area'])
-        if df.empty:
-            raise ValueError("No valid data remaining after cleaning")
-            
-        return df
-    except Exception as e:
-        st.error(f"Data loading failed: {str(e)}")
-        return pd.DataFrame()
+with st.expander('Input features'):
+  st.write('**Input penguin**')
+  input_df
+  st.write('**Combined penguins data**')
+  input_penguins
 
-# اختيار الجدول من Supabase
-selected_table = st.selectbox("اختر جدول لعرض البيانات:", table_names)
 
-# تحميل البيانات من الجدول المحدد
-df = load_data_from_supabase(selected_table)
+# Data preparation
+# Encode X
+encode = ['island', 'sex']
+df_penguins = pd.get_dummies(input_penguins, prefix=encode)
 
-if not df.empty:
-    st.success("Data loaded successfully!")
-    
-    # Data Overview
-    with st.expander("Data Overview"):
-        col1, col2 = st.columns(2)
-        with col1:
-            st.write("### Raw Data Sample")
-            st.dataframe(df.head())
-        with col2:
-            st.write("### Data Statistics")
-            st.dataframe(df.describe())
+X = df_penguins[1:]
+input_row = df_penguins[:1]
 
-        # Visualizations
-        try:
-            col1, col2 = st.columns(2)
-            with col1:
-                fig = px.histogram(df, x='price', title='Price Distribution')
-                st.plotly_chart(fig)
-            with col2:
-                fig = px.scatter(df, x='area', y='price', color='neighborhood_name',
-                               title='Area vs Price by Neighborhood')
-                st.plotly_chart(fig)
-        except Exception as e:
-            st.error(f"Visualization error: {str(e)}")
+# Encode y
+target_mapper = {'Adelie': 0,
+                 'Chinstrap': 1,
+                 'Gentoo': 2}
+def target_encode(val):
+  return target_mapper[val]
 
-    # Sidebar inputs
-    with st.sidebar:
-        st.header("Enter Property Details")
-        neighborhood = st.selectbox("Neighborhood", sorted(df['neighborhood_name'].unique()))
-        classification = st.selectbox("Classification", sorted(df['classification_name'].unique()))
-        property_type = st.selectbox("Property Type", sorted(df['property_type_name'].unique()))
-        
-        # Modified area slider with max 1500
-        area_min = float(df['area'].min())
-        area_max = 1500.0  # Hard-coded maximum
-        default_area = min(float(df['area'].median()), area_max)  # Ensure default doesn't exceed max
-        area = st.slider("Area (m²)", 
-                        min_value=area_min, 
-                        max_value=area_max,
-                        value=default_area)
+y = y_raw.apply(target_encode)
 
-    # Model training
-    @st.cache_resource
-    def train_model(data):
-        try:
-            X = pd.get_dummies(data[['neighborhood_name', 'classification_name',
-                                   'property_type_name', 'area']], drop_first=True)
-            y = data['price']
-            model = RandomForestRegressor(n_estimators=100, random_state=42)
-            model.fit(X, y)
-            return model, X.columns.tolist()
-        except Exception as e:
-            st.error(f"Model training failed: {str(e)}")
-            return None, None
+with st.expander('Data preparation'):
+  st.write('**Encoded X (input penguin)**')
+  input_row
+  st.write('**Encoded y**')
+  y
 
-    model, feature_columns = train_model(df)
 
-    if model and feature_columns:
-        # Prepare input features
-        input_df = pd.DataFrame([{
-            'neighborhood_name': neighborhood,
-            'classification_name': classification,
-            'property_type_name': property_type,
-            'area': area
-        }])
+# Model training and inference
+## Train the ML model
+clf = RandomForestClassifier()
+clf.fit(X, y)
 
-        # Generate dummy features
-        input_processed = pd.get_dummies(input_df, drop_first=True)
-        
-        # Align with training features
-        for col in feature_columns:
-            if col not in input_processed.columns:
-                input_processed[col] = 0
-        input_processed = input_processed[feature_columns]
+## Apply model to make predictions
+prediction = clf.predict(input_row)
+prediction_proba = clf.predict_proba(input_row)
 
-        # Make prediction
-        try:
-            prediction = model.predict(input_processed)[0]
-            st.markdown(f"## Predicted Price: ${prediction:,.2f}")
-            
-            # Feature importance
-            with st.expander("Feature Importance"):
-                importance_df = pd.DataFrame({
-                    'Feature': feature_columns,
-                    'Importance': model.feature_importances_
-                }).sort_values('Importance', ascending=False)
-                fig = px.bar(importance_df, x='Importance', y='Feature', orientation='h')
-                st.plotly_chart(fig)
-                
-        except Exception as e:
-            st.error(f"Prediction failed: {str(e)}")
+df_prediction_proba = pd.DataFrame(prediction_proba)
+df_prediction_proba.columns = ['Adelie', 'Chinstrap', 'Gentoo']
+df_prediction_proba.rename(columns={0: 'Adelie',
+                                 1: 'Chinstrap',
+                                 2: 'Gentoo'})
 
-    # Similar properties section
-    with st.expander("Similar Properties"):
-        similar = df[df['neighborhood_name'] == neighborhood]
-        if not similar.empty:
-            st.dataframe(similar.head())
-            fig = px.scatter(similar, x='area', y='price', 
-                            hover_data=['classification_name', 'property_type_name'])
-            st.plotly_chart(fig)
-        else:
-            st.warning("No similar properties found in this neighborhood")
+# Display predicted species
+st.subheader('Predicted Species')
+st.dataframe(df_prediction_proba,
+             column_config={
+               'Adelie': st.column_config.ProgressColumn(
+                 'Adelie',
+                 format='%f',
+                 width='medium',
+                 min_value=0,
+                 max_value=1
+               ),
+               'Chinstrap': st.column_config.ProgressColumn(
+                 'Chinstrap',
+                 format='%f',
+                 width='medium',
+                 min_value=0,
+                 max_value=1
+               ),
+               'Gentoo': st.column_config.ProgressColumn(
+                 'Gentoo',
+                 format='%f',
+                 width='medium',
+                 min_value=0,
+                 max_value=1
+               ),
+             }, hide_index=True)
 
-else:
-    st.error("Failed to load data. Please check the data source and try again.")
+
+penguins_species = np.array(['Adelie', 'Chinstrap', 'Gentoo'])
+st.success(str(penguins_species[prediction][0]))
