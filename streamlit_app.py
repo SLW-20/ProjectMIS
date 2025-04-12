@@ -26,25 +26,44 @@ def init_connection():
         st.error(f"Failed to connect to Supabase: {str(e)}")
         return None
 
-# First, fetch table schema to understand what columns are available
+# Load reference tables to get names from IDs
 @st.cache_data(ttl=600)
-def get_table_columns():
+def load_reference_data():
     try:
         supabase = init_connection()
         if not supabase:
-            return None
+            return {}, {}, {}
             
-        # First attempt to get column info by querying a single row
-        response = supabase.table('properties').select('*').limit(1).execute()
-        if response.data and len(response.data) > 0:
-            return list(response.data[0].keys())
-        else:
-            return None
+        # Try to load neighborhood reference table
+        try:
+            neighborhood_response = supabase.table('neighborhoods').select('*').execute()
+            neighborhood_dict = {item['id']: item['name'] for item in neighborhood_response.data} if neighborhood_response.data else {}
+        except Exception:
+            st.warning("Could not load neighborhoods table. Will use IDs instead of names.")
+            neighborhood_dict = {}
+            
+        # Try to load property type reference table
+        try:
+            property_type_response = supabase.table('property_types').select('*').execute()
+            property_type_dict = {item['id']: item['name'] for item in property_type_response.data} if property_type_response.data else {}
+        except Exception:
+            st.warning("Could not load property_types table. Will use IDs instead of names.")
+            property_type_dict = {}
+            
+        # Try to load classification reference table
+        try:
+            classification_response = supabase.table('classifications').select('*').execute()
+            classification_dict = {item['id']: item['name'] for item in classification_response.data} if classification_response.data else {}
+        except Exception:
+            st.warning("Could not load classifications table. Will use IDs instead of names.")
+            classification_dict = {}
+            
+        return neighborhood_dict, property_type_dict, classification_dict
     except Exception as e:
-        st.error(f"Failed to fetch table schema: {str(e)}")
-        return None
+        st.error(f"Failed to load reference data: {str(e)}")
+        return {}, {}, {}
 
-# Load data from Supabase with column mapping
+# Load data from Supabase with ID columns
 @st.cache_data(ttl=600)
 def load_data():
     try:
@@ -62,74 +81,42 @@ def load_data():
         if df.empty:
             raise ValueError("No data returned from database")
             
-        # Get actual columns from the table
-        columns = list(df.columns)
-        st.write("Available columns in properties table:", columns)
-        
-        # Try to map columns to expected names
-        column_mapping = {}
-        
-        # Here we'll try different variations of column names
-        neighborhood_options = ['neighborhood_name', 'neighborhood', 'area_name', 'location', 'district']
-        classification_options = ['classification_name', 'classification', 'property_classification', 'class']
-        property_type_options = ['property_type_name', 'property_type', 'type', 'building_type']
-        area_options = ['area', 'size', 'square_meters', 'sqm', 'area_sqm']
-        price_options = ['price', 'value', 'cost', 'sale_price']
-        
-        # Find matching columns
-        for col in columns:
-            col_lower = col.lower()
-            if any(opt.lower() == col_lower for opt in neighborhood_options):
-                column_mapping['neighborhood_name'] = col
-            elif any(opt.lower() == col_lower for opt in classification_options):
-                column_mapping['classification_name'] = col
-            elif any(opt.lower() == col_lower for opt in property_type_options):
-                column_mapping['property_type_name'] = col
-            elif any(opt.lower() == col_lower for opt in area_options):
-                column_mapping['area'] = col
-            elif any(opt.lower() == col_lower for opt in price_options):
-                column_mapping['price'] = col
-        
-        # Check if we found all necessary columns
-        required_columns = ['neighborhood_name', 'classification_name', 'property_type_name', 'area', 'price']
-        missing_columns = [col for col in required_columns if col not in column_mapping]
+        # Verify required columns
+        required_columns = ['neighborhood_id', 'classification_id', 'property_type_id', 'area', 'price']
+        missing_columns = [col for col in required_columns if col not in df.columns]
         
         if missing_columns:
-            # If columns are missing, ask user to manually map them
-            st.warning(f"Missing required columns: {', '.join(missing_columns)}")
-            st.info("Please select which columns from your database correspond to the required fields:")
-            
-            # Use dropdown to let user map columns
-            for missing in missing_columns:
-                column_mapping[missing] = st.selectbox(
-                    f"Map '{missing}' to:", 
-                    options=columns,
-                    key=f"map_{missing}"
-                )
-        
-        # Apply column mapping to the dataframe
-        mapped_df = df.copy()
-        for target_col, source_col in column_mapping.items():
-            if source_col in df.columns:
-                mapped_df[target_col] = df[source_col]
-            else:
-                raise ValueError(f"Column mapping failed: {source_col} not found in data")
-        
-        # Ensure we now have all required columns
-        for col in required_columns:
-            if col not in mapped_df.columns:
-                raise ValueError(f"Missing required column after mapping: {col}")
+            raise ValueError(f"Missing required columns: {', '.join(missing_columns)}")
         
         # Convert price and area to numeric if needed
-        mapped_df['price'] = pd.to_numeric(mapped_df['price'], errors='coerce')
-        mapped_df['area'] = pd.to_numeric(mapped_df['area'], errors='coerce')
+        df['price'] = pd.to_numeric(df['price'], errors='coerce')
+        df['area'] = pd.to_numeric(df['area'], errors='coerce')
         
         # Clean data
-        mapped_df = mapped_df.dropna(subset=['price', 'area'])
-        if mapped_df.empty:
+        df = df.dropna(subset=['price', 'area'])
+        if df.empty:
             raise ValueError("No valid data remaining after cleaning")
             
-        return mapped_df
+        # Load lookup tables to convert IDs to names
+        neighborhood_dict, property_type_dict, classification_dict = load_reference_data()
+        
+        # Create name columns from IDs
+        if neighborhood_dict:
+            df['neighborhood_name'] = df['neighborhood_id'].map(neighborhood_dict).fillna('Unknown')
+        else:
+            df['neighborhood_name'] = df['neighborhood_id'].astype(str)
+            
+        if property_type_dict:
+            df['property_type_name'] = df['property_type_id'].map(property_type_dict).fillna('Unknown')
+        else:
+            df['property_type_name'] = df['property_type_id'].astype(str)
+            
+        if classification_dict:
+            df['classification_name'] = df['classification_id'].map(classification_dict).fillna('Unknown')
+        else:
+            df['classification_name'] = df['classification_id'].astype(str)
+            
+        return df
     except Exception as e:
         st.error(f"Data loading failed: {str(e)}")
         return pd.DataFrame()
@@ -137,14 +124,6 @@ def load_data():
 # Initialize a placeholder for database connection status
 if 'db_connected' not in st.session_state:
     st.session_state['db_connected'] = False
-
-# Show table structure information
-columns = get_table_columns()
-if columns:
-    st.success("Successfully connected to Supabase!")
-    st.write("Columns in your 'properties' table:", columns)
-else:
-    st.error("Could not retrieve columns from your properties table.")
 
 # Load data
 df = load_data()
@@ -258,45 +237,84 @@ else:
     st.error("Failed to load data from Supabase. Please check your database connection and table structure.")
     
     # Display database inspection tool
-    with st.expander("Database Inspection Tool"):
-        st.write("Let's check what's in your Supabase database:")
-        
-        if st.button("Show Available Tables"):
-            try:
-                supabase = init_connection()
-                if supabase:
-                    # This would require admin access, so it might not work with anon key
-                    st.warning("Cannot list tables with anon key. Please check your Supabase dashboard directly.")
-                    st.write("Try entering your table name manually:")
-                    table_name = st.text_input("Table name:", value="properties")
-                    
-                    if st.button(f"Inspect '{table_name}' Table"):
-                        response = supabase.table(table_name).select('*').limit(5).execute()
-                        if response.data:
-                            st.write(f"Found data in '{table_name}' table:")
-                            st.write("Columns:", list(response.data[0].keys()))
-                            st.dataframe(pd.DataFrame(response.data))
-                        else:
-                            st.error(f"No data found in '{table_name}' table or table doesn't exist.")
-            except Exception as e:
-                st.error(f"Database inspection failed: {str(e)}")
-                
+    st.warning("""
+    ### Database Structure
+    
+    Your properties table has these columns:
+    - property_id
+    - area
+    - price
+    - property_type_id
+    - classification_id
+    - neighborhood_id
+    
+    But the app needs name values, not just IDs. Please make sure you have:
+    
+    1. A 'neighborhoods' table with 'id' and 'name' columns
+    2. A 'property_types' table with 'id' and 'name' columns
+    3. A 'classifications' table with 'id' and 'name' columns
+    
+    These tables should connect to your properties table via their ID fields.
+    """)
+    
+    # Create table structure tool
+    with st.expander("Create Reference Tables"):
         st.write("""
-        ### Manual Setup
-        
-        If you're seeing column errors, make sure your Supabase table has these columns or use the mapping tool above:
+        If you don't already have reference tables, you can create them with this SQL:
         
         ```sql
-        -- Example SQL to create a properties table with the expected columns
-        CREATE TABLE properties (
+        -- Create neighborhoods table
+        CREATE TABLE neighborhoods (
           id SERIAL PRIMARY KEY,
-          neighborhood_name TEXT NOT NULL,
-          classification_name TEXT NOT NULL,
-          property_type_name TEXT NOT NULL,
-          area NUMERIC NOT NULL,
-          price NUMERIC NOT NULL
+          name TEXT NOT NULL
+        );
+        
+        -- Create property_types table
+        CREATE TABLE property_types (
+          id SERIAL PRIMARY KEY,
+          name TEXT NOT NULL
+        );
+        
+        -- Create classifications table
+        CREATE TABLE classifications (
+          id SERIAL PRIMARY KEY,
+          name TEXT NOT NULL
         );
         ```
         
-        Or update your existing table to include these columns.
+        Then populate them with your data.
         """)
+        
+        # Simple tool to create test data
+        st.write("### Quick Reference Data Creator")
+        st.write("Use this to create simple reference data for testing:")
+        
+        table_option = st.selectbox(
+            "Select table to create:",
+            ["neighborhoods", "property_types", "classifications"]
+        )
+        
+        num_items = st.number_input("Number of items to create:", min_value=1, max_value=20, value=5)
+        
+        if st.button(f"Create {table_option} data"):
+            try:
+                supabase = init_connection()
+                
+                # Create example data
+                data = []
+                for i in range(1, num_items + 1):
+                    data.append({
+                        "id": i,
+                        "name": f"{table_option.title()[:-1]} {i}"
+                    })
+                
+                # Insert data
+                response = supabase.table(table_option).insert(data).execute()
+                
+                if response.data:
+                    st.success(f"Created {len(response.data)} items in {table_option} table")
+                    st.write("Data:", response.data)
+                else:
+                    st.error("Failed to create data")
+            except Exception as e:
+                st.error(f"Error creating reference data: {str(e)}")
