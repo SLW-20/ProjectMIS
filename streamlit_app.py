@@ -7,10 +7,10 @@ st.title('🤖 Machine Learning App')
 
 st.info('This is app builds a machine learning model!')
 
-with st.expander('Data'):
-  st.write('**Raw data**')
-  df = pd.read_csv('https://raw.githubusercontent.com/dataprofessor/data/master/penguins_cleaned.csv')
-  df
+# بيانات الاتصال بـ Supabase
+SUPABASE_URL = "https://imdnhiwyfgjdgextvrkj.supabase.co"
+SUPABASE_API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImltZG5oaXd5ZmdqZGdleHR2cmtqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mzk3MTM5NzksImV4cCI6MjA1NTI4OTk3OX0.9hIzkJYKrOTsKTKwjAyHRWBG2Rqe2Sgwq7WgddqLTDk"
+
 
   st.write('**X**')
   X_raw = df.drop('species', axis=1)
