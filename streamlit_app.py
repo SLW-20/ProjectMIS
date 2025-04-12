@@ -26,8 +26,26 @@ def init_connection():
         st.error(f"Failed to connect to Supabase: {str(e)}")
         return None
 
-# Load data from Supabase
-@st.cache_data(ttl=600)  # Cache for 10 minutes
+# First, fetch table schema to understand what columns are available
+@st.cache_data(ttl=600)
+def get_table_columns():
+    try:
+        supabase = init_connection()
+        if not supabase:
+            return None
+            
+        # First attempt to get column info by querying a single row
+        response = supabase.table('properties').select('*').limit(1).execute()
+        if response.data and len(response.data) > 0:
+            return list(response.data[0].keys())
+        else:
+            return None
+    except Exception as e:
+        st.error(f"Failed to fetch table schema: {str(e)}")
+        return None
+
+# Load data from Supabase with column mapping
+@st.cache_data(ttl=600)
 def load_data():
     try:
         # Initialize Supabase client
@@ -41,23 +59,77 @@ def load_data():
         # Convert to DataFrame
         df = pd.DataFrame(response.data)
         
-        # Data validation
-        required_columns = ['neighborhood_name', 'classification_name', 
-                          'property_type_name', 'area', 'price']
+        if df.empty:
+            raise ValueError("No data returned from database")
+            
+        # Get actual columns from the table
+        columns = list(df.columns)
+        st.write("Available columns in properties table:", columns)
+        
+        # Try to map columns to expected names
+        column_mapping = {}
+        
+        # Here we'll try different variations of column names
+        neighborhood_options = ['neighborhood_name', 'neighborhood', 'area_name', 'location', 'district']
+        classification_options = ['classification_name', 'classification', 'property_classification', 'class']
+        property_type_options = ['property_type_name', 'property_type', 'type', 'building_type']
+        area_options = ['area', 'size', 'square_meters', 'sqm', 'area_sqm']
+        price_options = ['price', 'value', 'cost', 'sale_price']
+        
+        # Find matching columns
+        for col in columns:
+            col_lower = col.lower()
+            if any(opt.lower() == col_lower for opt in neighborhood_options):
+                column_mapping['neighborhood_name'] = col
+            elif any(opt.lower() == col_lower for opt in classification_options):
+                column_mapping['classification_name'] = col
+            elif any(opt.lower() == col_lower for opt in property_type_options):
+                column_mapping['property_type_name'] = col
+            elif any(opt.lower() == col_lower for opt in area_options):
+                column_mapping['area'] = col
+            elif any(opt.lower() == col_lower for opt in price_options):
+                column_mapping['price'] = col
+        
+        # Check if we found all necessary columns
+        required_columns = ['neighborhood_name', 'classification_name', 'property_type_name', 'area', 'price']
+        missing_columns = [col for col in required_columns if col not in column_mapping]
+        
+        if missing_columns:
+            # If columns are missing, ask user to manually map them
+            st.warning(f"Missing required columns: {', '.join(missing_columns)}")
+            st.info("Please select which columns from your database correspond to the required fields:")
+            
+            # Use dropdown to let user map columns
+            for missing in missing_columns:
+                column_mapping[missing] = st.selectbox(
+                    f"Map '{missing}' to:", 
+                    options=columns,
+                    key=f"map_{missing}"
+                )
+        
+        # Apply column mapping to the dataframe
+        mapped_df = df.copy()
+        for target_col, source_col in column_mapping.items():
+            if source_col in df.columns:
+                mapped_df[target_col] = df[source_col]
+            else:
+                raise ValueError(f"Column mapping failed: {source_col} not found in data")
+        
+        # Ensure we now have all required columns
         for col in required_columns:
-            if col not in df.columns:
-                raise ValueError(f"Missing required column: {col}")
+            if col not in mapped_df.columns:
+                raise ValueError(f"Missing required column after mapping: {col}")
         
         # Convert price and area to numeric if needed
-        df['price'] = pd.to_numeric(df['price'], errors='coerce')
-        df['area'] = pd.to_numeric(df['area'], errors='coerce')
+        mapped_df['price'] = pd.to_numeric(mapped_df['price'], errors='coerce')
+        mapped_df['area'] = pd.to_numeric(mapped_df['area'], errors='coerce')
         
         # Clean data
-        df = df.dropna(subset=['price', 'area'])
-        if df.empty:
+        mapped_df = mapped_df.dropna(subset=['price', 'area'])
+        if mapped_df.empty:
             raise ValueError("No valid data remaining after cleaning")
             
-        return df
+        return mapped_df
     except Exception as e:
         st.error(f"Data loading failed: {str(e)}")
         return pd.DataFrame()
@@ -65,6 +137,14 @@ def load_data():
 # Initialize a placeholder for database connection status
 if 'db_connected' not in st.session_state:
     st.session_state['db_connected'] = False
+
+# Show table structure information
+columns = get_table_columns()
+if columns:
+    st.success("Successfully connected to Supabase!")
+    st.write("Columns in your 'properties' table:", columns)
+else:
+    st.error("Could not retrieve columns from your properties table.")
 
 # Load data
 df = load_data()
@@ -177,23 +257,46 @@ if not df.empty:
 else:
     st.error("Failed to load data from Supabase. Please check your database connection and table structure.")
     
-    # Display configuration help if not connected
-    if not st.session_state['db_connected']:
-        st.warning("""
-        ### Supabase Table Check
+    # Display database inspection tool
+    with st.expander("Database Inspection Tool"):
+        st.write("Let's check what's in your Supabase database:")
         
-        It appears your connection to Supabase is not returning any data. Make sure:
+        if st.button("Show Available Tables"):
+            try:
+                supabase = init_connection()
+                if supabase:
+                    # This would require admin access, so it might not work with anon key
+                    st.warning("Cannot list tables with anon key. Please check your Supabase dashboard directly.")
+                    st.write("Try entering your table name manually:")
+                    table_name = st.text_input("Table name:", value="properties")
+                    
+                    if st.button(f"Inspect '{table_name}' Table"):
+                        response = supabase.table(table_name).select('*').limit(5).execute()
+                        if response.data:
+                            st.write(f"Found data in '{table_name}' table:")
+                            st.write("Columns:", list(response.data[0].keys()))
+                            st.dataframe(pd.DataFrame(response.data))
+                        else:
+                            st.error(f"No data found in '{table_name}' table or table doesn't exist.")
+            except Exception as e:
+                st.error(f"Database inspection failed: {str(e)}")
+                
+        st.write("""
+        ### Manual Setup
         
-        1. Your 'properties' table exists and contains these required columns:
-           - neighborhood_name (text)
-           - classification_name (text)
-           - property_type_name (text)
-           - area (numeric)
-           - price (numeric)
+        If you're seeing column errors, make sure your Supabase table has these columns or use the mapping tool above:
         
-        2. The table has data imported into it
+        ```sql
+        -- Example SQL to create a properties table with the expected columns
+        CREATE TABLE properties (
+          id SERIAL PRIMARY KEY,
+          neighborhood_name TEXT NOT NULL,
+          classification_name TEXT NOT NULL,
+          property_type_name TEXT NOT NULL,
+          area NUMERIC NOT NULL,
+          price NUMERIC NOT NULL
+        );
+        ```
         
-        3. Column names exactly match those listed above (case-sensitive)
-        
-        4. You have proper permissions set up in Supabase
+        Or update your existing table to include these columns.
         """)
