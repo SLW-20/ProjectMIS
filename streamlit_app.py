@@ -4,133 +4,133 @@ from supabase import create_client
 from sklearn.ensemble import RandomForestRegressor
 import plotly.express as px
 
-# Supabase Connection Setup
-SUPABASE_URL = "https://imdnhiwyfgjdgextvrkj.supabase.co"
-SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImltZG5oaXd5ZmdqZGdleHR2cmtqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mzk3MTM5NzksImV4cCI6MjA1NTI4OTk3OX0.9hIzkJYKrOTsKTKwjAyHRWBG2Rqe2Sgwq7WgddqLTDk"
-supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
-
-# Load data from Supabase
-@st.cache_data(ttl=3600)
-def load_data():
+# 1. إعداد اتصال Supabase بشكل آمن
+@st.cache_resource
+def init_supabase():
     try:
-        # Load properties table (main data)
-        response = supabase.table('properties').select('*').execute()
-        df = pd.DataFrame(response.data)
-        
-        # Load reference tables
-        neighborhoods = pd.DataFrame(supabase.table('neighborhoods').select('*').execute().data)
-        classifications = pd.DataFrame(supabase.table('property_classifications').select('*').execute().data)
-        types = pd.DataFrame(supabase.table('property_type').select('*').execute().data)
-        
-        # Merge data
-        df = df.merge(neighborhoods, left_on='neighborhood_id', right_on='id', how='left')
-        df = df.merge(classifications, left_on='classification_id', right_on='id', how='left')
-        df = df.merge(types, left_on='property_type_id', right_on='id', how='left')
-        
-        # Clean data
-        df['price'] = pd.to_numeric(df['price'], errors='coerce')
-        df['area'] = pd.to_numeric(df['area'], errors='coerce')
-        df = df.dropna(subset=['price', 'area'])
-        
-        # Rename columns for display
-        df = df.rename(columns={
-            'name_x': 'neighborhood',
-            'name_y': 'classification',
-            'name': 'property_type'
-        })
-        
-        return df[['neighborhood', 'classification', 'property_type', 'area', 'price']]
-    
+        SUPABASE_URL = st.secrets["SUPABASE_URL"]
+        SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
+        return create_client(SUPABASE_URL, SUPABASE_KEY)
     except Exception as e:
-        st.error(f"Data loading failed: {str(e)}")
+        st.error(f"فشل الاتصال بقاعدة البيانات: {str(e)}")
+        return None
+
+supabase = init_supabase()
+
+# 2. دالة محسنة لجلب البيانات مع التحقق من كل خطوة
+@st.cache_data(ttl=3600)
+def load_merged_data():
+    if supabase is None:
         return pd.DataFrame()
 
-# App Interface
-st.set_page_config(page_title="Real Estate Predictor", layout="wide")
-st.title("🏠 Real Estate Price Prediction")
-st.info("Predict property prices based on features")
+    try:
+        # جلب الجدول الرئيسي
+        properties = supabase.table("properties").select("*").execute()
+        df = pd.DataFrame(properties.data)
+        
+        if df.empty:
+            st.warning("لا توجد بيانات في جدول العقارات")
+            return pd.DataFrame()
 
-# Load data
-df = load_data()
+        # الجداول المرجعية
+        tables = {
+            "neighborhoods": ("neighborhood_id", "name"),
+            "property_classifications": ("classification_id", "name"),
+            "property_type": ("property_type_id", "name")
+        }
+
+        for table, (id_col, name_col) in tables.items():
+            try:
+                ref_data = supabase.table(table).select("*").execute()
+                ref_df = pd.DataFrame(ref_data.data)
+                if not ref_df.empty:
+                    df = df.merge(
+                        ref_df[["id", name_col]], 
+                        left_on=id_col,
+                        right_on="id",
+                        how="left"
+                    ).rename(columns={name_col: table}).drop(columns=["id"])
+            except Exception as e:
+                st.error(f"خطأ في جلب جدول {table}: {str(e)}")
+
+        # تنظيف البيانات النهائية
+        df = df[["neighborhoods", "property_classifications", "property_type", "area", "price"]]
+        df.columns = ["neighborhood", "classification", "property_type", "area", "price"]
+        
+        df["price"] = pd.to_numeric(df["price"], errors="coerce")
+        df["area"] = pd.to_numeric(df["area"], errors="coerce")
+        return df.dropna()
+
+    except Exception as e:
+        st.error(f"خطأ في معالجة البيانات: {str(e)}")
+        return pd.DataFrame()
+
+# 3. واجهة التطبيق
+st.set_page_config(page_title="توقع أسعار العقارات", layout="wide")
+st.title("🏠 نظام توقع أسعار العقارات")
+
+# تحميل البيانات
+df = load_merged_data()
 
 if not df.empty:
-    # Data Preview
-    with st.expander("Data Preview"):
-        st.dataframe(df.head())
-    
-    # Input Section (Now clearly visible in main panel)
-    st.sidebar.header("Input Features")
-    
-    neighborhood = st.sidebar.selectbox("Neighborhood", df['neighborhood'].unique())
-    classification = st.sidebar.selectbox("Classification", df['classification'].unique())
-    property_type = st.sidebar.selectbox("Property Type", df['property_type'].unique())
-    
-    # Slider for area input (now more prominent)
-    area = st.sidebar.slider(
-        "Area (sqm)",
-        min_value=float(df['area'].min()),
-        max_value=float(df['area'].max()),
-        value=float(df['area'].median()),
-        step=10.0
-    )
-    
-    # Train Model
+    # قسم الإدخال
+    with st.sidebar:
+        st.header("خصائص العقار")
+        neighborhood = st.selectbox("الحي", df["neighborhood"].unique())
+        classification = st.selectbox("التصنيف", df["classification"].unique())
+        property_type = st.selectbox("نوع العقار", df["property_type"].unique())
+        area = st.slider("المساحة (م²)", 
+                        min_value=int(df["area"].min()),
+                        max_value=int(df["area"].max()),
+                        value=int(df["area"].median()))
+
+    # تدريب النموذج
     @st.cache_resource
-    def train_model(data):
+    def train_model(_df):
         try:
-            X = pd.get_dummies(data[['neighborhood', 'classification', 'property_type', 'area']])
-            y = data['price']
-            model = RandomForestRegressor(n_estimators=100, random_state=42)
+            X = pd.get_dummies(_df[["neighborhood", "classification", "property_type", "area"]])
+            y = _df["price"]
+            model = RandomForestRegressor(n_estimators=150, random_state=42)
             model.fit(X, y)
             return model, X.columns.tolist()
         except Exception as e:
-            st.error(f"Model training failed: {str(e)}")
+            st.error(f"خطأ في التدريب: {str(e)}")
             return None, None
-    
+
     model, features = train_model(df)
-    
+
     if model:
-        # Prepare input
+        # التنبؤ
         input_data = pd.DataFrame([{
-            'neighborhood': neighborhood,
-            'classification': classification,
-            'property_type': property_type,
-            'area': area
+            "neighborhood": neighborhood,
+            "classification": classification,
+            "property_type": property_type,
+            "area": area
         }])
-        
+
         input_processed = pd.get_dummies(input_data)
         for col in features:
             if col not in input_processed.columns:
                 input_processed[col] = 0
         input_processed = input_processed[features]
-        
-        # Prediction
+
         prediction = model.predict(input_processed)[0]
-        st.success(f"## Predicted Price: ${prediction:,.2f}")
-        
-        # Feature Importance
-        with st.expander("Feature Importance"):
-            importance = pd.DataFrame({
-                'Feature': features,
-                'Importance': model.feature_importances_
-            }).sort_values('Importance', ascending=False)
-            
-            fig = px.bar(importance.head(10), x='Importance', y='Feature', orientation='h')
-            st.plotly_chart(fig)
-    
-    # Similar Properties
-    with st.expander("Similar Properties"):
+        st.success(f"## السعر المتوقع: {prediction:,.2f} ريال")
+
+        # عرض البيانات
+        with st.expander("عرض البيانات"):
+            st.dataframe(df)
+
+        # العقارات المشابهة
         similar = df[
-            (df['neighborhood'] == neighborhood) & 
-            (df['classification'] == classification) & 
-            (df['property_type'] == property_type)
+            (df["neighborhood"] == neighborhood) &
+            (df["classification"] == classification) &
+            (df["property_type"] == property_type)
         ]
-        
         if not similar.empty:
-            st.dataframe(similar)
-            fig = px.scatter(similar, x='area', y='price', trendline="ols")
-            st.plotly_chart(fig)
-        else:
-            st.warning("No similar properties found")
+            st.plotly_chart(px.scatter(
+                similar, x="area", y="price",
+                title="العقارات المشابهة"
+            ))
 else:
-    st.error("Failed to load data. Please check your database connection.")
+    st.error("فشل تحميل البيانات. يرجى التحقق من اتصال قاعدة البيانات.")
