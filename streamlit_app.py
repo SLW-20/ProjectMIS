@@ -11,8 +11,6 @@ SUPABASE_API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSI
 # إنشاء العميل Supabase
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_API_KEY)
 
-# أسماء الجداول – ضيفها هنا يدويًا
-table_names = ["students", "grades", "real_estate_data"]  # استبدلها باسم الجدول الذي يحتوي على البيانات العقارية
 
 # Page config
 st.set_page_config(page_title="Real Estate Price Prediction", layout="wide")
@@ -49,17 +47,6 @@ def load_data_from_supabase(table_name):
     except Exception as e:
         st.error(f"Data loading failed: {str(e)}")
         return pd.DataFrame()
-
-# إضافة شعار جامعة الملك خالد في الزاوية العلوية اليمنى
-st.markdown(
-    """
-    <div style='text-align: right;'>
-        <img src='kku.logo.jpg' width='90'/>
-    </div>
-    """,
-    unsafe_allow_html=True
-)
-
 
 # اختيار الجدول من Supabase
 selected_table = st.selectbox("اختر جدول لعرض البيانات:", table_names)
