@@ -1,320 +1,251 @@
 import streamlit as st
-import numpy as np
 import pandas as pd
 from sklearn.ensemble import RandomForestRegressor
 import plotly.express as px
 from supabase import create_client
-import os
 
-# Page config
+# Page configuration
 st.set_page_config(page_title="Real Estate Price Prediction", layout="wide")
 
-# App title
+# App title and description
 st.title('🏠 Real Estate Price Prediction App')
-st.info('This app predicts real estate prices based on property features!')
+st.info('This app predicts real estate prices based on property features using Supabase data!')
 
 # Supabase connection
 @st.cache_resource
 def init_connection():
-    # Using the provided Supabase credentials
-    supabase_url = "https://imdnhiwyfgjdgextvrkj.supabase.co"
-    supabase_key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImltZG5oaXd5ZmdqZGdleHR2cmtqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mzk3MTM5NzksImV4cCI6MjA1NTI4OTk3OX0.9hIzkJYKrOTsKTKwjAyHRWBG2Rqe2Sgwq7WgddqLTDk"
-    
     try:
-        return create_client(supabase_url, supabase_key)
+        return create_client(
+            "https://imdnhiwyfgjdgextvrkj.supabase.co",
+            "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImltZG5oaXd5ZmdqZGdleHR2cmtqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mzk3MTM5NzksImV4cCI6MjA1NTI4OTk3OX0.9hIzkJYKrOTsKTKwjAyHRWBG2Rqe2Sgwq7WgddqLTDk"
+        )
     except Exception as e:
-        st.error(f"Failed to connect to Supabase: {str(e)}")
+        st.error(f"🔌 Connection failed: {str(e)}")
         return None
 
-# Load reference tables to get names from IDs
-@st.cache_data(ttl=600)
-def load_reference_data():
-    try:
-        supabase = init_connection()
-        if not supabase:
-            return {}, {}, {}
-            
-        # Try to load neighborhood reference table
-        try:
-            neighborhood_response = supabase.table('neighborhoods').select('*').execute()
-            neighborhood_dict = {item['id']: item['name'] for item in neighborhood_response.data} if neighborhood_response.data else {}
-        except Exception:
-            st.warning("Could not load neighborhoods table. Will use IDs instead of names.")
-            neighborhood_dict = {}
-            
-        # Try to load property type reference table
-        try:
-            property_type_response = supabase.table('property_types').select('*').execute()
-            property_type_dict = {item['id']: item['name'] for item in property_type_response.data} if property_type_response.data else {}
-        except Exception:
-            st.warning("Could not load property_types table. Will use IDs instead of names.")
-            property_type_dict = {}
-            
-        # Try to load classification reference table
-        try:
-            classification_response = supabase.table('classifications').select('*').execute()
-            classification_dict = {item['id']: item['name'] for item in classification_response.data} if classification_response.data else {}
-        except Exception:
-            st.warning("Could not load classifications table. Will use IDs instead of names.")
-            classification_dict = {}
-            
-        return neighborhood_dict, property_type_dict, classification_dict
-    except Exception as e:
-        st.error(f"Failed to load reference data: {str(e)}")
-        return {}, {}, {}
-
-# Load data from Supabase with ID columns
+# Enhanced data loader with relational handling
 @st.cache_data(ttl=600)
 def load_data():
     try:
-        # Initialize Supabase client
         supabase = init_connection()
         if not supabase:
             return pd.DataFrame()
-        
-        # Fetch data from the 'properties' table
-        response = supabase.table('properties').select('*').execute()
-        
-        # Convert to DataFrame
-        df = pd.DataFrame(response.data)
-        
-        if df.empty:
-            raise ValueError("No data returned from database")
+
+        # Attempt to load data with joined tables
+        try:
+            response = supabase.table('properties').select('*, neighborhoods(name), property_types(name), classifications(name)').execute()
+            df = pd.DataFrame(response.data)
             
-        # Verify required columns
-        required_columns = ['neighborhood_id', 'classification_id', 'property_type_id', 'area', 'price']
-        missing_columns = [col for col in required_columns if col not in df.columns]
-        
-        if missing_columns:
-            raise ValueError(f"Missing required columns: {', '.join(missing_columns)}")
-        
-        # Convert price and area to numeric if needed
+            # Extract nested names from joined tables
+            df['neighborhood_name'] = df['neighborhoods'].apply(lambda x: x.get('name') if isinstance(x, dict) else None)
+            df['property_type_name'] = df['property_types'].apply(lambda x: x.get('name') if isinstance(x, dict) else None)
+            df['classification_name'] = df['classifications'].apply(lambda x: x.get('name') if isinstance(x, dict) else None)
+            
+        except Exception as join_error:
+            st.warning("Using manual ID mapping for names")
+            response = supabase.table('properties').select('*').execute()
+            df = pd.DataFrame(response.data)
+            
+            # Load reference tables
+            ref_tables = {
+                'neighborhoods': ('id', 'name'),
+                'property_types': ('id', 'name'),
+                'classifications': ('id', 'name')
+            }
+            
+            for table, (id_col, name_col) in ref_tables.items():
+                try:
+                    ref_response = supabase.table(table).select(f'{id_col}, {name_col}').execute()
+                    ref_df = pd.DataFrame(ref_response.data)
+                    if not ref_df.empty:
+                        mapper = dict(zip(ref_df[id_col], ref_df[name_col]))
+                        df[f'{table[:-1]}_name'] = df[f'{table[:-1]}_id'].map(mapper)
+                    else:
+                        st.warning(f"Empty reference table: {table}")
+                        df[f'{table[:-1]}_name'] = df[f'{table[:-1]}_id'].astype(str)
+                except Exception as e:
+                    st.error(f"Missing {table} table: Using IDs")
+                    df[f'{table[:-1]}_name'] = df[f'{table[:-1]}_id'].astype(str)
+
+        # Validate required columns
+        required = ['neighborhood_name', 'property_type_name', 
+                   'classification_name', 'area', 'price']
+        for col in required:
+            if col not in df.columns:
+                raise ValueError(f"Missing column: {col}")
+
+        # Data cleaning
         df['price'] = pd.to_numeric(df['price'], errors='coerce')
         df['area'] = pd.to_numeric(df['area'], errors='coerce')
-        
-        # Clean data
         df = df.dropna(subset=['price', 'area'])
-        if df.empty:
-            raise ValueError("No valid data remaining after cleaning")
-            
-        # Load lookup tables to convert IDs to names
-        neighborhood_dict, property_type_dict, classification_dict = load_reference_data()
         
-        # Create name columns from IDs
-        if neighborhood_dict:
-            df['neighborhood_name'] = df['neighborhood_id'].map(neighborhood_dict).fillna('Unknown')
-        else:
-            df['neighborhood_name'] = df['neighborhood_id'].astype(str)
-            
-        if property_type_dict:
-            df['property_type_name'] = df['property_type_id'].map(property_type_dict).fillna('Unknown')
-        else:
-            df['property_type_name'] = df['property_type_id'].astype(str)
-            
-        if classification_dict:
-            df['classification_name'] = df['classification_id'].map(classification_dict).fillna('Unknown')
-        else:
-            df['classification_name'] = df['classification_id'].astype(str)
-            
-        return df
-    except Exception as e:
-        st.error(f"Data loading failed: {str(e)}")
-        return pd.DataFrame()
+        return df.drop(columns=['neighborhoods', 'property_types', 'classifications'], errors='ignore')
 
-# Initialize a placeholder for database connection status
-if 'db_connected' not in st.session_state:
-    st.session_state['db_connected'] = False
+    except Exception as e:
+        st.error(f"🚨 Data loading error: {str(e)}")
+        return pd.DataFrame()
 
 # Load data
 df = load_data()
 
 if not df.empty:
-    st.session_state['db_connected'] = True
-    st.success("Data loaded successfully from Supabase!")
+    st.success("✅ Data loaded successfully from Supabase!")
     
-    # Data Overview
-    with st.expander("Data Overview"):
+    # Data overview section
+    with st.expander("📊 Data Overview", expanded=True):
         col1, col2 = st.columns(2)
         with col1:
-            st.write("### Raw Data Sample")
-            st.dataframe(df.head())
+            st.write("### Raw Data Preview")
+            st.dataframe(df.head(), use_container_width=True)
         with col2:
-            st.write("### Data Statistics")
-            st.dataframe(df.describe())
+            st.write("### Statistical Summary")
+            st.dataframe(df.describe(), use_container_width=True)
 
         # Visualizations
         try:
+            st.write("### Data Distributions")
             col1, col2 = st.columns(2)
             with col1:
                 fig = px.histogram(df, x='price', title='Price Distribution')
-                st.plotly_chart(fig)
+                st.plotly_chart(fig, use_container_width=True)
             with col2:
                 fig = px.scatter(df, x='area', y='price', color='neighborhood_name',
-                               title='Area vs Price by Neighborhood')
-                st.plotly_chart(fig)
+                               title='Price vs Area by Neighborhood')
+                st.plotly_chart(fig, use_container_width=True)
         except Exception as e:
-            st.error(f"Visualization error: {str(e)}")
+            st.error(f"📈 Visualization error: {str(e)}")
 
-    # Sidebar inputs
+    # Prediction interface
     with st.sidebar:
-        st.header("Enter Property Details")
+        st.header("🔧 Prediction Parameters")
         neighborhood = st.selectbox("Neighborhood", sorted(df['neighborhood_name'].unique()))
-        classification = st.selectbox("Classification", sorted(df['classification_name'].unique()))
         property_type = st.selectbox("Property Type", sorted(df['property_type_name'].unique()))
+        classification = st.selectbox("Classification", sorted(df['classification_name'].unique()))
         
-        # Modified area slider with max 1500
-        area_min = float(df['area'].min())
-        area_max = 1500.0  # Hard-coded maximum
-        default_area = min(float(df['area'].median()), area_max)  # Ensure default doesn't exceed max
         area = st.slider("Area (m²)", 
-                        min_value=area_min, 
-                        max_value=area_max,
-                        value=default_area)
+                        min_value=float(df['area'].min()),
+                        max_value=1500.0,
+                        value=float(df['area'].median()))
 
     # Model training
     @st.cache_resource
-    def train_model(data):
+    def train_model(_df):
         try:
-            X = pd.get_dummies(data[['neighborhood_name', 'classification_name',
-                                   'property_type_name', 'area']], drop_first=True)
-            y = data['price']
+            X = pd.get_dummies(_df[['neighborhood_name', 'property_type_name', 
+                                  'classification_name', 'area']], drop_first=True)
+            y = _df['price']
             model = RandomForestRegressor(n_estimators=100, random_state=42)
             model.fit(X, y)
             return model, X.columns.tolist()
         except Exception as e:
-            st.error(f"Model training failed: {str(e)}")
+            st.error(f"🤖 Model training failed: {str(e)}")
             return None, None
 
-    model, feature_columns = train_model(df)
+    model, features = train_model(df)
 
-    if model and feature_columns:
-        # Prepare input features
-        input_df = pd.DataFrame([{
-            'neighborhood_name': neighborhood,
-            'classification_name': classification,
-            'property_type_name': property_type,
-            'area': area
-        }])
-
-        # Generate dummy features
-        input_processed = pd.get_dummies(input_df, drop_first=True)
-        
-        # Align with training features
-        for col in feature_columns:
-            if col not in input_processed.columns:
-                input_processed[col] = 0
-        input_processed = input_processed[feature_columns]
-
-        # Make prediction
+    if model and features:
+        # Prediction handling
         try:
-            prediction = model.predict(input_processed)[0]
-            st.markdown(f"## Predicted Price: **${prediction:,.2f}**")
+            input_data = pd.DataFrame([{
+                'neighborhood_name': neighborhood,
+                'property_type_name': property_type,
+                'classification_name': classification,
+                'area': area
+            }])
             
-            # Feature importance
-            with st.expander("Feature Importance"):
+            # Process input features
+            processed = pd.get_dummies(input_data, drop_first=True)
+            for col in features:
+                if col not in processed.columns:
+                    processed[col] = 0
+            processed = processed[features]
+            
+            # Make prediction
+            prediction = model.predict(processed)[0]
+            st.markdown(f"## 🏷 Predicted Price: **${prediction:,.2f}**")
+            
+            # Feature importance visualization
+            with st.expander("📈 Feature Importance Analysis"):
                 importance_df = pd.DataFrame({
-                    'Feature': feature_columns,
+                    'Feature': features,
                     'Importance': model.feature_importances_
                 }).sort_values('Importance', ascending=False)
-                fig = px.bar(importance_df, x='Importance', y='Feature', orientation='h')
-                st.plotly_chart(fig)
                 
+                fig = px.bar(importance_df, x='Importance', y='Feature', 
+                           orientation='h', title='Feature Importance Ranking')
+                st.plotly_chart(fig, use_container_width=True)
+
         except Exception as e:
-            st.error(f"Prediction failed: {str(e)}")
+            st.error(f"🔮 Prediction failed: {str(e)}")
 
     # Similar properties section
-    with st.expander("Similar Properties"):
+    with st.expander("🏘 Similar Properties in Neighborhood"):
         similar = df[df['neighborhood_name'] == neighborhood]
         if not similar.empty:
-            st.dataframe(similar.head())
-            fig = px.scatter(similar, x='area', y='price', 
-                            hover_data=['classification_name', 'property_type_name'])
-            st.plotly_chart(fig)
+            st.dataframe(similar.head(10), use_container_width=True)
+            fig = px.scatter(similar, x='area', y='price',
+                            hover_data=['classification_name', 'property_type_name'],
+                            title=f'Properties in {neighborhood}')
+            st.plotly_chart(fig, use_container_width=True)
         else:
             st.warning("No similar properties found in this neighborhood")
 
 else:
-    st.error("Failed to load data from Supabase. Please check your database connection and table structure.")
+    st.error("❌ Failed to load data. Please check your database setup.")
     
-    # Display database inspection tool
-    st.warning("""
-    ### Database Structure
-    
-    Your properties table has these columns:
-    - property_id
-    - area
-    - price
-    - property_type_id
-    - classification_id
-    - neighborhood_id
-    
-    But the app needs name values, not just IDs. Please make sure you have:
-    
-    1. A 'neighborhoods' table with 'id' and 'name' columns
-    2. A 'property_types' table with 'id' and 'name' columns
-    3. A 'classifications' table with 'id' and 'name' columns
-    
-    These tables should connect to your properties table via their ID fields.
-    """)
-    
-    # Create table structure tool
-    with st.expander("Create Reference Tables"):
-        st.write("""
-        If you don't already have reference tables, you can create them with this SQL:
+    # Database setup guide
+    with st.expander("🔧 Database Configuration Guide", expanded=True):
+        st.markdown("""
+        ### Required Database Structure
         
-        ```sql
-        -- Create neighborhoods table
-        CREATE TABLE neighborhoods (
-          id SERIAL PRIMARY KEY,
-          name TEXT NOT NULL
-        );
+        1. **Properties Table** (`properties`)
+           - Columns:
+             - `neighborhood_id` (INT)
+             - `property_type_id` (INT)
+             - `classification_id` (INT)
+             - `area` (NUMERIC)
+             - `price` (NUMERIC)
         
-        -- Create property_types table
-        CREATE TABLE property_types (
-          id SERIAL PRIMARY KEY,
-          name TEXT NOT NULL
-        );
+        2. **Reference Tables** (with proper relationships):
+           ```sql
+           CREATE TABLE neighborhoods (
+               id SERIAL PRIMARY KEY,
+               name TEXT NOT NULL
+           );
+           
+           CREATE TABLE property_types (
+               id SERIAL PRIMARY KEY,
+               name TEXT NOT NULL
+           );
+           
+           CREATE TABLE classifications (
+               id SERIAL PRIMARY KEY,
+               name TEXT NOT NULL
+           );
+           ```
         
-        -- Create classifications table
-        CREATE TABLE classifications (
-          id SERIAL PRIMARY KEY,
-          name TEXT NOT NULL
-        );
-        ```
-        
-        Then populate them with your data.
+        3. **Foreign Key Relationships**:
+           - `properties.neighborhood_id` → `neighborhoods.id`
+           - `properties.property_type_id` → `property_types.id`
+           - `properties.classification_id` → `classifications.id`
         """)
         
-        # Simple tool to create test data
-        st.write("### Quick Reference Data Creator")
-        st.write("Use this to create simple reference data for testing:")
+        # Reference table creator
+        st.markdown("### 🛠 Quick Setup Tool")
+        table_choice = st.selectbox("Select table to create:", 
+                                  ["neighborhoods", "property_types", "classifications"])
         
-        table_option = st.selectbox(
-            "Select table to create:",
-            ["neighborhoods", "property_types", "classifications"]
-        )
-        
-        num_items = st.number_input("Number of items to create:", min_value=1, max_value=20, value=5)
-        
-        if st.button(f"Create {table_option} data"):
+        if st.button("🔄 Initialize Table"):
             try:
                 supabase = init_connection()
-                
-                # Create example data
-                data = []
-                for i in range(1, num_items + 1):
-                    data.append({
-                        "id": i,
-                        "name": f"{table_option.title()[:-1]} {i}"
-                    })
-                
-                # Insert data
-                response = supabase.table(table_option).insert(data).execute()
-                
+                response = supabase.table(table_choice).insert([{"name": "Sample Entry"}]).execute()
                 if response.data:
-                    st.success(f"Created {len(response.data)} items in {table_option} table")
-                    st.write("Data:", response.data)
+                    st.success(f"Successfully created {table_choice} table!")
                 else:
-                    st.error("Failed to create data")
+                    st.error("Table creation failed")
             except Exception as e:
-                st.error(f"Error creating reference data: {str(e)}")
+                st.error(f"Error: {str(e)}")
+
+# Footer
+st.markdown("---")
+st.markdown("🔍 Check the sidebar to modify prediction parameters")
