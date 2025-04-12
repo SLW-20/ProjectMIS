@@ -88,7 +88,7 @@ def load_data():
 # Load data
 df = load_data()
 
-Mohammed, [14/10/46 02:49 م]
+
 if not df.empty:
     st.success("✅ Data loaded successfully from Supabase!")
     
