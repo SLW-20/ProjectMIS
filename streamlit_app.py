@@ -83,7 +83,7 @@ st.markdown("""
 <style>
     .main-header {
         font-size: 3rem;
-        font-weight: 1500;
+        font-weight: 1000;
         color: #1E3A8A;
         margin-bottom: 1rem;
     }
