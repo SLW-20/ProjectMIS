@@ -288,7 +288,6 @@ df = load_data()
 
 if not df.empty:
     st.session_state['db_connected'] = True
-    st.markdown('<div class="success-box">✅ Data loaded successfully from Supabase!</div>', unsafe_allow_html=True)
     
     # Create two main columns for the layout
     col1, col2 = st.columns([1, 2])
@@ -389,7 +388,7 @@ if not df.empty:
     
     st.markdown('<div class="sub-header">Market Analysis</div>', unsafe_allow_html=True)
     
-    tab1, tab2, tab3 = st.tabs(["Price Distribution", "Area vs Price", "Feature Importance"])
+    tab1, tab2, tab3 = st.tabs(["Price Distribution", "Area vs Price", "Feature Impact Analysis"])
     
     with tab1:
         try:
@@ -412,11 +411,15 @@ if not df.empty:
             
     with tab2:
         try:
+            # Enhance the Area vs Price scatter plot with a trendline and refined markers 
             fig = px.scatter(df, x='area', y='price', 
                              color='neighborhood_name',
                              title='Area vs Price by Neighborhood',
                              labels={'area': 'Area (m²)', 'price': 'Price ($)', 'neighborhood_name': 'Neighborhood'},
-                             hover_data=['classification_name', 'property_type_name'])
+                             hover_data=['classification_name', 'property_type_name'],
+                             trendline="ols",
+                             color_discrete_sequence=px.colors.qualitative.Pastel)
+            fig.update_traces(marker=dict(size=10, line=dict(width=1, color='DarkSlateGrey')))
             fig.update_layout(
                 title_font_size=20,
                 legend_title_font_size=14,
@@ -433,26 +436,31 @@ if not df.empty:
     with tab3:
         try:
             if model and feature_columns:
+                # Create a DataFrame of feature importance from the model
                 importance_df = pd.DataFrame({
                     'Feature': feature_columns,
-                    'Importance': model.feature_importances_
-                }).sort_values('Importance', ascending=False)
-                fig = px.bar(importance_df, x='Importance', y='Feature', 
+                    'Impact': model.feature_importances_
+                }).sort_values('Impact', ascending=True)
+                
+                # Improved horizontal bar chart with annotations for better design
+                fig = px.bar(importance_df, x='Impact', y='Feature', 
                              orientation='h',
-                             title='Feature Importance in Price Prediction',
-                             labels={'Importance': 'Importance Score', 'Feature': 'Property Feature'},
-                             color_discrete_sequence=['#3B82F6'])
+                             title='Feature Impact Analysis',
+                             labels={'Impact': 'Impact Score', 'Feature': 'Property Feature'},
+                             color='Impact',
+                             color_continuous_scale=px.colors.sequential.Bluered)
                 fig.update_layout(
                     title_font_size=20,
                     plot_bgcolor='white',
                     paper_bgcolor='white',
                     margin=dict(l=20, r=20, t=40, b=20),
                     xaxis_title_font_size=14,
-                    yaxis_title_font_size=14
+                    yaxis_title_font_size=14,
+                    coloraxis_showscale=False
                 )
                 st.plotly_chart(fig, use_container_width=True)
         except Exception as e:
-            st.error(f"Feature importance visualization error: {str(e)}")
+            st.error(f"Feature impact visualization error: {str(e)}")
             
     st.markdown('<div class="sub-header">Similar Properties</div>', unsafe_allow_html=True)
     st.markdown('<div style="font-size: 0.875rem; color: #6B7280; margin-bottom: 1rem;">Properties in the same neighborhood for comparison</div>', unsafe_allow_html=True)
