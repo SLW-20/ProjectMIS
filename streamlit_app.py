@@ -16,11 +16,11 @@ st.set_page_config(
 
 # تحميل شعار جامعة الملك خالد وعرضه في الزاوية العلوية اليمنى مع التعديلات المطلوبة
 try:
-    # Check if file exists in current directory
+    # محاولة تحميل الشعار من الملف الأساسي
     if os.path.exists('kku.logo.jpg'):
         logo = Image.open('kku.logo.jpg')
     else:
-        # Try different possible paths or variations of the filename
+        # قائمة بالمسارات المحتملة لاسم الصورة
         possible_paths = [
             'kku_logo.jpg',
             'kku_logo.png',
@@ -37,10 +37,10 @@ try:
                 st.success(f"Found KKU logo at: {path}")
                 break
         else:
-            # If logo isn't found, let's raise a specific error
+            # في حال عدم العثور على الملف، يتم رفع استثناء محدد
             raise FileNotFoundError("KKU logo image file not found. Please ensure 'kku.logo.jpg' is in the same directory as the app.")
     
-    # Apply the logo container CSS
+    # تطبيق CSS لتثبيت الشعار في الزاوية العلوية اليمنى مع تنسيق النص بشكل ملائم
     st.markdown(
         """
         <style>
@@ -56,16 +56,21 @@ try:
         unsafe_allow_html=True
     )
     
-    # Display the logo and the project text under it in the same container
+    # عرض الشعار والنص أسفله داخل نفس الحاوية مع تقليل الفراغ بينهما
     st.markdown('<div class="logo-container">', unsafe_allow_html=True)
-    st.image(logo, width=200)  # تكبير الشعار بإعدادات العرض
+    st.image(logo, width=200)  # تكبير الشعار إلى عرض 150 بكسل
     st.markdown(
-        '<p style="color: black; font-size: 17px; margin-top: 10px; foun-weigh: blod;">MIS Graduation Project</p>',
+        """
+        <div style="margin-top: -10px;">
+            <p style="font-size:20px; font-weight:bold; color: black; text-align:center;">
+                MIS Graduation Project
+            </p>
+        </div>
+        """,
         unsafe_allow_html=True
     )
     st.markdown('</div>', unsafe_allow_html=True)
     
-    # Confirm logo display
     st.session_state['logo_displayed'] = True
     
 except Exception as e:
@@ -73,7 +78,7 @@ except Exception as e:
     st.info("Please ensure the KKU logo file (kku.logo.jpg) is in the same directory as this app.")
     st.session_state['logo_displayed'] = False
 
-# Custom CSS to improve the design
+# Custom CSS to improve the design of the application
 st.markdown("""
 <style>
     .main-header {
@@ -159,43 +164,37 @@ def load_reference_data():
         if not supabase:
             return {}, {}, {}
             
-        # Try to load neighborhood reference table
+        # Load neighborhoods table
         neighborhood_dict = {}
         try:
             neighborhood_response = supabase.table('neighborhoods').select('*').execute()
             if neighborhood_response.data:
-                # First, attempt with expected column names
                 if 'neighborhood_id' in neighborhood_response.data[0] and 'neighborhood_name' in neighborhood_response.data[0]:
                     neighborhood_dict = {item['neighborhood_id']: item['neighborhood_name'] for item in neighborhood_response.data}
-                # Fallback to generic 'id' and 'name'
                 elif 'id' in neighborhood_response.data[0] and 'name' in neighborhood_response.data[0]:
                     neighborhood_dict = {item['id']: item['name'] for item in neighborhood_response.data}
         except Exception:
             pass
             
-        # Try to load property type reference table
+        # Load property type reference table
         property_type_dict = {}
         try:
-            # Try both possible table names
             try:
                 property_type_response = supabase.table('property_type').select('*').execute()
             except:
                 property_type_response = supabase.table('property_types').select('*').execute()
                 
             if property_type_response.data:
-                # First, attempt with expected column names
                 if 'property_type_id' in property_type_response.data[0] and 'property_type_name' in property_type_response.data[0]:
                     property_type_dict = {item['property_type_id']: item['property_type_name'] for item in property_type_response.data}
-                # Fallback to generic 'id' and 'name'
                 elif 'id' in property_type_response.data[0] and 'name' in property_type_response.data[0]:
                     property_type_dict = {item['id']: item['name'] for item in property_type_response.data}
         except Exception:
             pass
             
-        # Try to load classification reference table
+        # Load classification reference table
         classification_dict = {}
         try:
-            # Try both possible table names
             try:
                 classification_response = supabase.table('property_classifications').select('*').execute()
             except:
@@ -205,10 +204,8 @@ def load_reference_data():
                     classification_response = supabase.table('property_classification').select('*').execute()
                 
             if classification_response.data:
-                # First, attempt with expected column names
                 if 'classification_id' in classification_response.data[0] and 'classification_name' in classification_response.data[0]:
                     classification_dict = {item['classification_id']: item['classification_name'] for item in classification_response.data}
-                # Fallback to generic 'id' and 'name'
                 elif 'id' in classification_response.data[0] and 'name' in classification_response.data[0]:
                     classification_dict = {item['id']: item['name'] for item in classification_response.data}
         except Exception:
@@ -223,7 +220,6 @@ def load_reference_data():
 @st.cache_data(ttl=600)
 def load_data():
     try:
-        # Initialize Supabase client
         supabase = init_connection()
         if not supabase:
             return pd.DataFrame()
@@ -231,18 +227,17 @@ def load_data():
         # Fetch data from the 'properties' table
         response = supabase.table('properties').select('*').execute()
         
-        # Convert to DataFrame
+        # Convert response data to DataFrame
         df = pd.DataFrame(response.data)
         
         if df.empty:
             raise ValueError("No data returned from database")
         
-        # Identify ID columns - handle different possible naming conventions
+        # تحديد الأعمدة باستخدام تسميات محتملة
         neighborhood_id_col = next((col for col in df.columns if col in ['neighborhood_id', 'neighborhood']), None)
         property_type_id_col = next((col for col in df.columns if col in ['property_type_id', 'property_type']), None)
         classification_id_col = next((col for col in df.columns if col in ['classification_id', 'classification']), None)
         
-        # Verify required columns exist in some form
         missing_columns = []
         if not neighborhood_id_col:
             missing_columns.append("neighborhood_id")
@@ -258,19 +253,15 @@ def load_data():
         if missing_columns:
             raise ValueError(f"Missing required columns: {', '.join(missing_columns)}")
         
-        # Convert price and area to numeric if needed
         df['price'] = pd.to_numeric(df['price'], errors='coerce')
         df['area'] = pd.to_numeric(df['area'], errors='coerce')
         
-        # Clean data
         df = df.dropna(subset=['price', 'area'])
         if df.empty:
             raise ValueError("No valid data remaining after cleaning")
             
-        # Load lookup tables to convert IDs to names
         neighborhood_dict, property_type_dict, classification_dict = load_reference_data()
         
-        # Create name columns from IDs
         if neighborhood_dict and neighborhood_id_col:
             df['neighborhood_name'] = df[neighborhood_id_col].map(neighborhood_dict).fillna('Unknown')
         else:
@@ -291,7 +282,6 @@ def load_data():
         st.error(f"Data loading failed: {str(e)}")
         return pd.DataFrame()
 
-# Initialize a placeholder for database connection status
 if 'db_connected' not in st.session_state:
     st.session_state['db_connected'] = False
 
@@ -312,31 +302,27 @@ if not df.empty:
         classification = st.selectbox("Classification", sorted(df['classification_name'].unique()))
         property_type = st.selectbox("Property Type", sorted(df['property_type_name'].unique()))
         
-        # Area slider with better styling
+        # Area slider
         area_min = float(df['area'].min())
-        area_max = 1500.0  # Hard-coded maximum
-        default_area = min(float(df['area'].median()), area_max)  # Ensure default doesn't exceed max
+        area_max = 1500.0
+        default_area = min(float(df['area'].median()), area_max)
         
         st.markdown("### Area (m²)")
         area = st.slider("", 
-                        min_value=area_min, 
-                        max_value=area_max,
-                        value=default_area,
-                        format="%.2f m²")
+                         min_value=area_min, 
+                         max_value=area_max,
+                         value=default_area,
+                         format="%.2f m²")
         
-        # Add some space
         st.markdown("<br>", unsafe_allow_html=True)
         
-        # Add a "Calculate" button for better UX
         calculate_button = st.button("Calculate Price Prediction", use_container_width=True)
     
-    # Main content area with improved design
-    # Model training (keep it outside the button check as it's cached)
     @st.cache_resource
     def train_model(data):
         try:
             X = pd.get_dummies(data[['neighborhood_name', 'classification_name',
-                               'property_type_name', 'area']], drop_first=True)
+                                     'property_type_name', 'area']], drop_first=True)
             y = data['price']
             model = RandomForestRegressor(n_estimators=100, random_state=42)
             model.fit(X, y)
@@ -347,37 +333,30 @@ if not df.empty:
 
     model, feature_columns = train_model(df)
     
-    # Prediction section (moved to main area)
     if model and feature_columns:
-        # Prepare input features
         input_df = pd.DataFrame([{
             'neighborhood_name': neighborhood,
             'classification_name': classification,
             'property_type_name': property_type,
             'area': area
         }])
-
-        # Generate dummy features
+        
         input_processed = pd.get_dummies(input_df, drop_first=True)
         
-        # Align with training features
         for col in feature_columns:
             if col not in input_processed.columns:
                 input_processed[col] = 0
         input_processed = input_processed[feature_columns]
-
-        # Make prediction
+        
         try:
             prediction = model.predict(input_processed)[0]
             
-            # Display prediction with enhanced styling
             st.markdown('<div class="prediction-box">', unsafe_allow_html=True)
-            st.markdown(f'<div style="font-size: 1.5rem; color: #6B7280;">Estimated Property Price</div>', unsafe_allow_html=True)
+            st.markdown('<div style="font-size: 1.5rem; color: #6B7280;">Estimated Property Price</div>', unsafe_allow_html=True)
             st.markdown(f'<div style="font-size: 3rem; font-weight: bold; color: #1E3A8A; margin: 1rem 0;">${prediction:,.2f}</div>', unsafe_allow_html=True)
             st.markdown('<div style="font-size: 0.875rem; color: #6B7280;">Based on property attributes and market data</div>', unsafe_allow_html=True)
             st.markdown('</div>', unsafe_allow_html=True)
             
-            # Property details summary card
             st.markdown("""
             <div style="background-color: #F8FAFC; padding: 1.5rem; border-radius: 0.75rem; margin-bottom: 2rem; box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);">
                 <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 1rem; color: #1E3A8A;">Property Details</div>
@@ -405,10 +384,8 @@ if not df.empty:
         except Exception as e:
             st.error(f"Prediction failed: {str(e)}")
     
-    # Data exploration section with improved design
     st.markdown('<div class="sub-header">Market Analysis</div>', unsafe_allow_html=True)
     
-    # Tabs for different visualizations
     tab1, tab2, tab3 = st.tabs(["Price Distribution", "Area vs Price", "Feature Importance"])
     
     with tab1:
@@ -433,10 +410,10 @@ if not df.empty:
     with tab2:
         try:
             fig = px.scatter(df, x='area', y='price', 
-                           color='neighborhood_name',
-                           title='Area vs Price by Neighborhood',
-                           labels={'area': 'Area (m²)', 'price': 'Price ($)', 'neighborhood_name': 'Neighborhood'},
-                           hover_data=['classification_name', 'property_type_name'])
+                             color='neighborhood_name',
+                             title='Area vs Price by Neighborhood',
+                             labels={'area': 'Area (m²)', 'price': 'Price ($)', 'neighborhood_name': 'Neighborhood'},
+                             hover_data=['classification_name', 'property_type_name'])
             fig.update_layout(
                 title_font_size=20,
                 legend_title_font_size=14,
@@ -458,10 +435,10 @@ if not df.empty:
                     'Importance': model.feature_importances_
                 }).sort_values('Importance', ascending=False)
                 fig = px.bar(importance_df, x='Importance', y='Feature', 
-                           orientation='h',
-                           title='Feature Importance in Price Prediction',
-                           labels={'Importance': 'Importance Score', 'Feature': 'Property Feature'},
-                           color_discrete_sequence=['#3B82F6'])
+                             orientation='h',
+                             title='Feature Importance in Price Prediction',
+                             labels={'Importance': 'Importance Score', 'Feature': 'Property Feature'},
+                             color_discrete_sequence=['#3B82F6'])
                 fig.update_layout(
                     title_font_size=20,
                     plot_bgcolor='white',
@@ -474,13 +451,11 @@ if not df.empty:
         except Exception as e:
             st.error(f"Feature importance visualization error: {str(e)}")
             
-    # Similar properties section with improved design
     st.markdown('<div class="sub-header">Similar Properties</div>', unsafe_allow_html=True)
     st.markdown('<div style="font-size: 0.875rem; color: #6B7280; margin-bottom: 1rem;">Properties in the same neighborhood for comparison</div>', unsafe_allow_html=True)
     
     similar = df[df['neighborhood_name'] == neighborhood]
     if not similar.empty:
-        # Display similar properties in a more appealing table
         st.dataframe(
             similar[['property_type_name', 'classification_name', 'area', 'price']].head(5),
             column_config={
@@ -493,12 +468,11 @@ if not df.empty:
             hide_index=True
         )
         
-        # Add scatter plot of similar properties
         fig = px.scatter(similar, x='area', y='price', 
-                       title=f'Price vs Area in {neighborhood}',
-                       labels={'area': 'Area (m²)', 'price': 'Price ($)'},
-                       hover_data=['classification_name', 'property_type_name'],
-                       color_discrete_sequence=['#3B82F6'])
+                         title=f'Price vs Area in {neighborhood}',
+                         labels={'area': 'Area (m²)', 'price': 'Price ($)'},
+                         hover_data=['classification_name', 'property_type_name'],
+                         color_discrete_sequence=['#3B82F6'])
         fig.update_layout(
             title_font_size=18,
             plot_bgcolor='white',
@@ -507,7 +481,6 @@ if not df.empty:
             xaxis_title_font_size=14,
             yaxis_title_font_size=14
         )
-        # Add a point for the current property selection
         fig.add_scatter(
             x=[area], 
             y=[prediction] if 'prediction' in locals() else [0],
@@ -520,7 +493,6 @@ if not df.empty:
     else:
         st.warning("No similar properties found in this neighborhood")
 
-    # Add a footer with app information
     st.markdown("""
     <div style="margin-top: 4rem; padding-top: 1rem; border-top: 1px solid #E5E7EB; text-align: center; color: #6B7280; font-size: 0.875rem;">
         <p>Real Estate Price Prediction App | Powered by Machine Learning</p>
