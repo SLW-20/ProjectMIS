@@ -7,6 +7,13 @@ from supabase import create_client
 import os
 from PIL import Image
 
+# Attempt to import statsmodels to enable OLS trendline
+try:
+    import statsmodels
+    STATS_MODELS_AVAILABLE = True
+except ImportError:
+    STATS_MODELS_AVAILABLE = False
+
 # Enhanced page configuration with custom theme
 st.set_page_config(
     page_title="Real Estate Price Prediction", 
@@ -411,15 +418,30 @@ if not df.empty:
             
     with tab2:
         try:
-            # Enhance the Area vs Price scatter plot with a trendline and refined markers 
-            fig = px.scatter(df, x='area', y='price', 
-                             color='neighborhood_name',
-                             title='Area vs Price by Neighborhood',
-                             labels={'area': 'Area (m²)', 'price': 'Price ($)', 'neighborhood_name': 'Neighborhood'},
-                             hover_data=['classification_name', 'property_type_name'],
-                             trendline="ols",
-                             color_discrete_sequence=px.colors.qualitative.Pastel)
+            # Decide whether to add the trendline based on statsmodels availability
+            if STATS_MODELS_AVAILABLE:
+                trendline_arg = "ols"
+                trendline_note = "Trendline: OLS (statsmodels installed)"
+            else:
+                trendline_arg = None
+                trendline_note = "Trendline: Not available (statsmodels not installed)"
+            
+            fig = px.scatter(
+                df, 
+                x='area', 
+                y='price', 
+                color='neighborhood_name',
+                title='Area vs Price by Neighborhood',
+                labels={'area': 'Area (m²)', 'price': 'Price ($)', 'neighborhood_name': 'Neighborhood'},
+                hover_data=['classification_name', 'property_type_name'],
+                trendline=trendline_arg,
+                color_discrete_sequence=px.colors.qualitative.Pastel
+            )
+            
+            # Make markers bigger, add a border
             fig.update_traces(marker=dict(size=10, line=dict(width=1, color='DarkSlateGrey')))
+            
+            # Enhance layout
             fig.update_layout(
                 title_font_size=20,
                 legend_title_font_size=14,
@@ -427,7 +449,18 @@ if not df.empty:
                 paper_bgcolor='white',
                 margin=dict(l=20, r=20, t=40, b=20),
                 xaxis_title_font_size=14,
-                yaxis_title_font_size=14
+                yaxis_title_font_size=14,
+                annotations=[
+                    dict(
+                        text=trendline_note,
+                        x=0.5, 
+                        y=-0.15, 
+                        xref='paper', 
+                        yref='paper',
+                        showarrow=False, 
+                        font=dict(color="gray", size=12)
+                    )
+                ]
             )
             st.plotly_chart(fig, use_container_width=True)
         except Exception as e:
@@ -445,10 +478,13 @@ if not df.empty:
             y_pred = model.predict(X_train)
             
             # Scatter plot for Actual vs Predicted Prices with a y=x reference line
-            performance_fig = px.scatter(x=y_actual, y=y_pred,
-                                         labels={'x': 'Actual Price', 'y': 'Predicted Price'},
-                                         title='Model Performance: Actual vs Predicted Prices',
-                                         color_discrete_sequence=['#3B82F6'])
+            performance_fig = px.scatter(
+                x=y_actual, 
+                y=y_pred,
+                labels={'x': 'Actual Price', 'y': 'Predicted Price'},
+                title='Model Performance: Actual vs Predicted Prices',
+                color_discrete_sequence=['#3B82F6']
+            )
             performance_fig.add_shape(
                 type='line',
                 x0=y_actual.min(), y0=y_actual.min(),
