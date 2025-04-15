@@ -16,7 +16,31 @@ st.set_page_config(
 
 # تحميل شعار جامعة الملك خالد وعرضه في الزاوية العلوية اليمنى
 try:
-    logo = Image.open('kku.logo.jpg')
+    # Check if file exists in current directory
+    if os.path.exists('kku.logo.jpg'):
+        logo = Image.open('kku.logo.jpg')
+    else:
+        # Try different possible paths or variations of the filename
+        possible_paths = [
+            'kku_logo.jpg',
+            'kku_logo.png',
+            'kku.logo.png',
+            'logo.jpg',
+            'logo.png',
+            './kku.logo.jpg',
+            './images/kku.logo.jpg'
+        ]
+        
+        for path in possible_paths:
+            if os.path.exists(path):
+                logo = Image.open(path)
+                st.success(f"Found KKU logo at: {path}")
+                break
+        else:
+            # If logo isn't found, let's raise a specific error
+            raise FileNotFoundError("KKU logo image file not found. Please ensure 'kku.logo.jpg' is in the same directory as the app.")
+    
+    # Apply the logo container CSS
     st.markdown(
         """
         <style>
@@ -30,14 +54,19 @@ try:
         """,
         unsafe_allow_html=True
     )
-    st.markdown(
-        '<div class="logo-container">',
-        unsafe_allow_html=True
-    )
+    
+    # Display the logo
+    st.markdown('<div class="logo-container">', unsafe_allow_html=True)
     st.image(logo, width=100)
     st.markdown('</div>', unsafe_allow_html=True)
+    
+    # Confirm logo display
+    st.session_state['logo_displayed'] = True
+    
 except Exception as e:
     st.error(f"Error loading KKU logo: {str(e)}")
+    st.info("Please ensure the KKU logo file (kku.logo.jpg) is in the same directory as this app.")
+    st.session_state['logo_displayed'] = False
 
 # Custom CSS to improve the design
 st.markdown("""
