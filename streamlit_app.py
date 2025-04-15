@@ -5,6 +5,7 @@ from sklearn.ensemble import RandomForestRegressor
 import plotly.express as px
 from supabase import create_client
 import os
+from PIL import Image
 
 # Enhanced page configuration with custom theme
 st.set_page_config(
@@ -12,6 +13,31 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+# تحميل شعار جامعة الملك خالد وعرضه في الزاوية العلوية اليمنى
+try:
+    logo = Image.open('kku.logo.jpg')
+    st.markdown(
+        """
+        <style>
+        .logo-container {
+            position: fixed;
+            top: 14px;
+            right: 30px;
+            z-index: 1000;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+    st.markdown(
+        '<div class="logo-container">',
+        unsafe_allow_html=True
+    )
+    st.image(logo, width=100)
+    st.markdown('</div>', unsafe_allow_html=True)
+except Exception as e:
+    st.error(f"Error loading KKU logo: {str(e)}")
 
 # Custom CSS to improve the design
 st.markdown("""
