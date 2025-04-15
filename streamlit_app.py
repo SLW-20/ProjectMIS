@@ -54,7 +54,7 @@ try:
         }
         .logo-text {
             margin-top: 5px;
-            font-size: 15px;
+            font-size: 10px;
             font-weight: bold;
             color: black;
         }
