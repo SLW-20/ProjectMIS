@@ -46,7 +46,7 @@ try:
         <style>
         .logo-container {
             position: fixed;
-            top: 14px;
+            top: 18px;
             right: 30px;
             z-index: 1000;
             text-align: center;
