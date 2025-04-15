@@ -34,28 +34,32 @@ def load_reference_data():
         if not supabase:
             return {}, {}, {}
             
+        # Fixed table names and column names to match the database schema
         # Try to load neighborhood reference table
         try:
             neighborhood_response = supabase.table('neighborhoods').select('*').execute()
-            neighborhood_dict = {item['id']: item['name'] for item in neighborhood_response.data} if neighborhood_response.data else {}
-        except Exception:
-            st.warning("Could not load neighborhoods table. Will use IDs instead of names.")
+            neighborhood_dict = {item['neighborhood_id']: item['neighborhood_name'] 
+                               for item in neighborhood_response.data} if neighborhood_response.data else {}
+        except Exception as e:
+            st.warning(f"Could not load neighborhoods table: {str(e)}. Will use IDs instead of names.")
             neighborhood_dict = {}
             
         # Try to load property type reference table
         try:
-            property_type_response = supabase.table('property_types').select('*').execute()
-            property_type_dict = {item['id']: item['name'] for item in property_type_response.data} if property_type_response.data else {}
-        except Exception:
-            st.warning("Could not load property_types table. Will use IDs instead of names.")
+            property_type_response = supabase.table('property_type').select('*').execute()
+            property_type_dict = {item['property_type_id']: item['property_type_name'] 
+                                for item in property_type_response.data} if property_type_response.data else {}
+        except Exception as e:
+            st.warning(f"Could not load property_type table: {str(e)}. Will use IDs instead of names.")
             property_type_dict = {}
             
         # Try to load classification reference table
         try:
-            classification_response = supabase.table('classifications').select('*').execute()
-            classification_dict = {item['id']: item['name'] for item in classification_response.data} if classification_response.data else {}
-        except Exception:
-            st.warning("Could not load classifications table. Will use IDs instead of names.")
+            classification_response = supabase.table('property_classifications').select('*').execute()
+            classification_dict = {item['classification_id']: item['classification_name'] 
+                                 for item in classification_response.data} if classification_response.data else {}
+        except Exception as e:
+            st.warning(f"Could not load property_classifications table: {str(e)}. Will use IDs instead of names.")
             classification_dict = {}
             
         return neighborhood_dict, property_type_dict, classification_dict
@@ -250,9 +254,9 @@ else:
     
     But the app needs name values, not just IDs. Please make sure you have:
     
-    1. A 'neighborhoods' table with 'id' and 'name' columns
-    2. A 'property_types' table with 'id' and 'name' columns
-    3. A 'classifications' table with 'id' and 'name' columns
+    1. A 'neighborhoods' table with 'neighborhood_id' and 'neighborhood_name' columns
+    2. A 'property_type' table with 'property_type_id' and 'property_type_name' columns
+    3. A 'property_classifications' table with 'classification_id' and 'classification_name' columns
     
     These tables should connect to your properties table via their ID fields.
     """)
@@ -265,20 +269,20 @@ else:
         ```sql
         -- Create neighborhoods table
         CREATE TABLE neighborhoods (
-          id SERIAL PRIMARY KEY,
-          name TEXT NOT NULL
+          neighborhood_id TEXT PRIMARY KEY,
+          neighborhood_name VARCHAR NOT NULL
         );
         
         -- Create property_types table
-        CREATE TABLE property_types (
-          id SERIAL PRIMARY KEY,
-          name TEXT NOT NULL
+        CREATE TABLE property_type (
+          property_type_id TEXT PRIMARY KEY,
+          property_type_name VARCHAR NOT NULL
         );
         
         -- Create classifications table
-        CREATE TABLE classifications (
-          id SERIAL PRIMARY KEY,
-          name TEXT NOT NULL
+        CREATE TABLE property_classifications (
+          classification_id TEXT PRIMARY KEY,
+          classification_name VARCHAR NOT NULL
         );
         ```
         
@@ -289,10 +293,18 @@ else:
         st.write("### Quick Reference Data Creator")
         st.write("Use this to create simple reference data for testing:")
         
+        table_options = {
+            "neighborhoods": ("neighborhood_id", "neighborhood_name"),
+            "property_type": ("property_type_id", "property_type_name"),
+            "property_classifications": ("classification_id", "classification_name")
+        }
+        
         table_option = st.selectbox(
             "Select table to create:",
-            ["neighborhoods", "property_types", "classifications"]
+            list(table_options.keys())
         )
+        
+        id_col, name_col = table_options[table_option]
         
         num_items = st.number_input("Number of items to create:", min_value=1, max_value=20, value=5)
         
@@ -302,10 +314,11 @@ else:
                 
                 # Create example data
                 data = []
+                prefix = table_option[0:3].upper()
                 for i in range(1, num_items + 1):
                     data.append({
-                        "id": i,
-                        "name": f"{table_option.title()[:-1]} {i}"
+                        id_col: f"{prefix}-{i:03d}",
+                        name_col: f"{table_option.title().replace('_', ' ')} {i}"
                     })
                 
                 # Insert data
@@ -318,7 +331,3 @@ else:
                     st.error("Failed to create data")
             except Exception as e:
                 st.error(f"Error creating reference data: {str(e)}")
-
-
-
-
