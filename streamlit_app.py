@@ -61,7 +61,7 @@ try:
     st.image(logo, width=200)  # تكبير الشعار إلى عرض 150 بكسل
     st.markdown(
         """
-        <div style="margin-top: -5px;">
+        <div style="margin-top: -10px;">
             <p style="font-size:20px; font-weight:bold; color: black; text-align:center;">
                 MIS Graduation Project
             </p>
@@ -83,7 +83,7 @@ st.markdown("""
 <style>
     .main-header {
         font-size: 3rem;
-        font-weight: 700;
+        font-weight: 1000;
         color: #1E3A8A;
         margin-bottom: 1rem;
     }
