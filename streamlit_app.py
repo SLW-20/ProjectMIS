@@ -54,7 +54,7 @@ try:
         }
         .logo-text {
             margin-top: 5px;
-            font-size: 20px;
+            font-size: 15px;
             font-weight: bold;
             color: black;
         }
@@ -68,7 +68,7 @@ try:
     
     # Display logo and text
     st.markdown('<div class="logo-container">', unsafe_allow_html=True)
-    st.image(logo, width=220)
+    st.image(logo, width=200)
     st.markdown('<div class="logo-text">MIS Graduation Project</div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
     
