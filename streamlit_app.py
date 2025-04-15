@@ -26,6 +26,25 @@ def init_connection():
         st.error(f"Failed to connect to Supabase: {str(e)}")
         return None
 
+# Debug function to show table structure
+def debug_table_structure(table_name):
+    try:
+        supabase = init_connection()
+        if not supabase:
+            return
+        
+        # Get the first row to see columns
+        response = supabase.table(table_name).select('*').limit(1).execute()
+        
+        if response.data:
+            sample_row = response.data[0]
+            st.write(f"### {table_name} columns:")
+            st.json(sample_row)
+        else:
+            st.warning(f"No data in {table_name} table")
+    except Exception as e:
+        st.error(f"Error inspecting {table_name}: {str(e)}")
+
 # Load reference tables to get names from IDs
 @st.cache_data(ttl=600)
 def load_reference_data():
@@ -33,34 +52,79 @@ def load_reference_data():
         supabase = init_connection()
         if not supabase:
             return {}, {}, {}
+        
+        # Debug flag to show detailed error information
+        debug_mode = True
             
-        # Fixed table names and column names to match the database schema
         # Try to load neighborhood reference table
+        neighborhood_dict = {}
         try:
             neighborhood_response = supabase.table('neighborhoods').select('*').execute()
-            neighborhood_dict = {item['neighborhood_id']: item['neighborhood_name'] 
-                               for item in neighborhood_response.data} if neighborhood_response.data else {}
+            if neighborhood_response.data:
+                # First, attempt with expected column names
+                if 'neighborhood_id' in neighborhood_response.data[0] and 'neighborhood_name' in neighborhood_response.data[0]:
+                    neighborhood_dict = {item['neighborhood_id']: item['neighborhood_name'] for item in neighborhood_response.data}
+                # Fallback to generic 'id' and 'name'
+                elif 'id' in neighborhood_response.data[0] and 'name' in neighborhood_response.data[0]:
+                    neighborhood_dict = {item['id']: item['name'] for item in neighborhood_response.data}
+                # Last resort: print actual keys to help debug
+                else:
+                    if debug_mode:
+                        st.warning(f"Unexpected neighborhood columns: {list(neighborhood_response.data[0].keys())}")
         except Exception as e:
-            st.warning(f"Could not load neighborhoods table: {str(e)}. Will use IDs instead of names.")
-            neighborhood_dict = {}
+            if debug_mode:
+                st.warning(f"Could not load neighborhoods table: {type(e).__name__}: {str(e)}")
             
         # Try to load property type reference table
+        property_type_dict = {}
         try:
-            property_type_response = supabase.table('property_type').select('*').execute()
-            property_type_dict = {item['property_type_id']: item['property_type_name'] 
-                                for item in property_type_response.data} if property_type_response.data else {}
+            # Try both possible table names
+            try:
+                property_type_response = supabase.table('property_type').select('*').execute()
+            except:
+                property_type_response = supabase.table('property_types').select('*').execute()
+                
+            if property_type_response.data:
+                # First, attempt with expected column names
+                if 'property_type_id' in property_type_response.data[0] and 'property_type_name' in property_type_response.data[0]:
+                    property_type_dict = {item['property_type_id']: item['property_type_name'] for item in property_type_response.data}
+                # Fallback to generic 'id' and 'name'
+                elif 'id' in property_type_response.data[0] and 'name' in property_type_response.data[0]:
+                    property_type_dict = {item['id']: item['name'] for item in property_type_response.data}
+                # Last resort: print actual keys to help debug
+                else:
+                    if debug_mode:
+                        st.warning(f"Unexpected property type columns: {list(property_type_response.data[0].keys())}")
         except Exception as e:
-            st.warning(f"Could not load property_type table: {str(e)}. Will use IDs instead of names.")
-            property_type_dict = {}
+            if debug_mode:
+                st.warning(f"Could not load property type table: {type(e).__name__}: {str(e)}")
             
         # Try to load classification reference table
+        classification_dict = {}
         try:
-            classification_response = supabase.table('property_classifications').select('*').execute()
-            classification_dict = {item['classification_id']: item['classification_name'] 
-                                 for item in classification_response.data} if classification_response.data else {}
+            # Try both possible table names
+            try:
+                classification_response = supabase.table('property_classifications').select('*').execute()
+            except:
+                try:
+                    classification_response = supabase.table('classifications').select('*').execute()
+                except:
+                    classification_response = supabase.table('property_classification').select('*').execute()
+                
+            if classification_response.data:
+                # First, attempt with expected column names
+                if 'classification_id' in classification_response.data[0] and 'classification_name' in classification_response.data[0]:
+                    classification_dict = {item['classification_id']: item['classification_name'] for item in classification_response.data}
+                # Fallback to generic 'id' and 'name'
+                elif 'id' in classification_response.data[0] and 'name' in classification_response.data[0]:
+                    classification_dict = {item['id']: item['name'] for item in classification_response.data}
+                # Last resort: print actual keys to help debug
+                else:
+                    if debug_mode:
+                        st.warning(f"Unexpected classification columns: {list(classification_response.data[0].keys())}")
         except Exception as e:
-            st.warning(f"Could not load property_classifications table: {str(e)}. Will use IDs instead of names.")
-            classification_dict = {}
+            if debug_mode:
+                st.warning(f"Could not load classification table: {type(e).__name__}: {str(e)}")
             
         return neighborhood_dict, property_type_dict, classification_dict
     except Exception as e:
@@ -84,10 +148,27 @@ def load_data():
         
         if df.empty:
             raise ValueError("No data returned from database")
+        
+        # Debug: Show actual columns in the properties table
+        st.write("Properties table columns:", list(df.columns))
             
-        # Verify required columns
-        required_columns = ['neighborhood_id', 'classification_id', 'property_type_id', 'area', 'price']
-        missing_columns = [col for col in required_columns if col not in df.columns]
+        # Identify ID columns - handle different possible naming conventions
+        neighborhood_id_col = next((col for col in df.columns if col in ['neighborhood_id', 'neighborhood']), None)
+        property_type_id_col = next((col for col in df.columns if col in ['property_type_id', 'property_type']), None)
+        classification_id_col = next((col for col in df.columns if col in ['classification_id', 'classification']), None)
+        
+        # Verify required columns exist in some form
+        missing_columns = []
+        if not neighborhood_id_col:
+            missing_columns.append("neighborhood_id")
+        if not property_type_id_col:
+            missing_columns.append("property_type_id")
+        if not classification_id_col:
+            missing_columns.append("classification_id")
+        if 'area' not in df.columns:
+            missing_columns.append("area")
+        if 'price' not in df.columns:
+            missing_columns.append("price")
         
         if missing_columns:
             raise ValueError(f"Missing required columns: {', '.join(missing_columns)}")
@@ -105,20 +186,20 @@ def load_data():
         neighborhood_dict, property_type_dict, classification_dict = load_reference_data()
         
         # Create name columns from IDs
-        if neighborhood_dict:
-            df['neighborhood_name'] = df['neighborhood_id'].map(neighborhood_dict).fillna('Unknown')
+        if neighborhood_dict and neighborhood_id_col:
+            df['neighborhood_name'] = df[neighborhood_id_col].map(neighborhood_dict).fillna('Unknown')
         else:
-            df['neighborhood_name'] = df['neighborhood_id'].astype(str)
+            df['neighborhood_name'] = df[neighborhood_id_col].astype(str) if neighborhood_id_col else 'Unknown'
             
-        if property_type_dict:
-            df['property_type_name'] = df['property_type_id'].map(property_type_dict).fillna('Unknown')
+        if property_type_dict and property_type_id_col:
+            df['property_type_name'] = df[property_type_id_col].map(property_type_dict).fillna('Unknown')
         else:
-            df['property_type_name'] = df['property_type_id'].astype(str)
+            df['property_type_name'] = df[property_type_id_col].astype(str) if property_type_id_col else 'Unknown'
             
-        if classification_dict:
-            df['classification_name'] = df['classification_id'].map(classification_dict).fillna('Unknown')
+        if classification_dict and classification_id_col:
+            df['classification_name'] = df[classification_id_col].map(classification_dict).fillna('Unknown')
         else:
-            df['classification_name'] = df['classification_id'].astype(str)
+            df['classification_name'] = df[classification_id_col].astype(str) if classification_id_col else 'Unknown'
             
         return df
     except Exception as e:
@@ -128,6 +209,14 @@ def load_data():
 # Initialize a placeholder for database connection status
 if 'db_connected' not in st.session_state:
     st.session_state['db_connected'] = False
+
+# Show debug tools
+with st.expander("Database Debug Tools"):
+    st.write("Use these tools to inspect your database tables")
+    debug_table = st.selectbox("Select table to inspect", 
+                          ["neighborhoods", "property_type", "property_classifications", "properties"])
+    if st.button("Inspect Table Structure"):
+        debug_table_structure(debug_table)
 
 # Load data
 df = load_data()
@@ -244,19 +333,19 @@ else:
     st.warning("""
     ### Database Structure
     
-    Your properties table has these columns:
+    Your properties table should have these columns:
     - property_id
-    - area
-    - price
+    - area (numeric)
+    - price (numeric)
     - property_type_id
     - classification_id
     - neighborhood_id
     
-    But the app needs name values, not just IDs. Please make sure you have:
+    And you need these reference tables:
     
     1. A 'neighborhoods' table with 'neighborhood_id' and 'neighborhood_name' columns
-    2. A 'property_type' table with 'property_type_id' and 'property_type_name' columns
-    3. A 'property_classifications' table with 'classification_id' and 'classification_name' columns
+    2. A 'property_type' (or 'property_types') table with 'property_type_id' and 'property_type_name' columns
+    3. A 'property_classifications' (or 'classifications') table with 'classification_id' and 'classification_name' columns
     
     These tables should connect to your properties table via their ID fields.
     """)
@@ -267,20 +356,20 @@ else:
         If you don't already have reference tables, you can create them with this SQL:
         
         ```sql
-        -- Create neighborhoods table
-        CREATE TABLE neighborhoods (
+        -- Create neighborhoods table (if it doesn't exist)
+        CREATE TABLE IF NOT EXISTS neighborhoods (
           neighborhood_id TEXT PRIMARY KEY,
           neighborhood_name VARCHAR NOT NULL
         );
         
-        -- Create property_types table
-        CREATE TABLE property_type (
+        -- Create property_type table (if it doesn't exist)
+        CREATE TABLE IF NOT EXISTS property_type (
           property_type_id TEXT PRIMARY KEY,
           property_type_name VARCHAR NOT NULL
         );
         
-        -- Create classifications table
-        CREATE TABLE property_classifications (
+        -- Create property_classifications table (if it doesn't exist)
+        CREATE TABLE IF NOT EXISTS property_classifications (
           classification_id TEXT PRIMARY KEY,
           classification_name VARCHAR NOT NULL
         );
