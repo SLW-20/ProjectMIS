@@ -14,7 +14,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# تحميل شعار جامعة الملك خالد وعرضه في الزاوية العلوية اليمنى مع التعديلات المطلوبة
+# تحميل شعار جامعة الملك خالد وعرضه في الزاوية العلوية اليمنى مع النص تحته
 try:
     # محاولة تحميل الشعار من الملف الأساسي
     if os.path.exists('kku.logo.jpg'):
@@ -37,10 +37,9 @@ try:
                 st.success(f"Found KKU logo at: {path}")
                 break
         else:
-            # في حال عدم العثور على الملف، يتم رفع استثناء محدد
             raise FileNotFoundError("KKU logo image file not found. Please ensure 'kku.logo.jpg' is in the same directory as the app.")
     
-    # تطبيق CSS لتثبيت الشعار في الزاوية العلوية اليمنى مع تنسيق النص بشكل ملائم
+    # تطبيق CSS لتثبيت الشعار في الزاوية العلوية اليمنى مع النص تحته
     st.markdown(
         """
         <style>
@@ -50,25 +49,34 @@ try:
             right: 30px;
             z-index: 1000;
             text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+        }
+        .logo-text {
+            margin-top: 5px;
+            font-size: 20px;
+            font-weight: bold;
+            color: black;
+        }
+        .main-header {
+            margin-top: 100px;
+            font-size: 3rem;
+            font-weight: 1000;
+            color: #1E3A8A;
+            margin-bottom: 1rem;
+            text-align: right;
+            direction: rtl;
         }
         </style>
         """,
         unsafe_allow_html=True
     )
     
-    # عرض الشعار والنص أسفله داخل نفس الحاوية مع تقليل الفراغ بينهما
+    # عرض الشعار والنص أسفله داخل نفس الحاوية
     st.markdown('<div class="logo-container">', unsafe_allow_html=True)
-    st.image(logo, width=200)  # تكبير الشعار إلى عرض 150 بكسل
-    st.markdown(
-        """
-        <div style="margin-top: -10px;">
-            <p style="font-size:20px; font-weight:bold; color: black; text-align:center;">
-                MIS Graduation Project
-            </p>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
+    st.image(logo, width=200)
+    st.markdown('<div class="logo-text">MIS Graduation Project</div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
     
     st.session_state['logo_displayed'] = True
@@ -81,12 +89,6 @@ except Exception as e:
 # Custom CSS to improve the design of the application
 st.markdown("""
 <style>
-    .main-header {
-        font-size: 3rem;
-        font-weight: 1000;
-        color: #1E3A8A;
-        margin-bottom: 1rem;
-    }
     .sub-header {
         font-size: 1.5rem;
         font-weight: 500;
@@ -117,16 +119,13 @@ st.markdown("""
     .sidebar .block-container {
         padding-top: 2rem;
     }
-    /* Custom styling for expanders */
     .streamlit-expanderHeader {
         font-weight: 600;
         color: #1E3A8A;
     }
-    /* Improve sidebar styling */
     .sidebar .block-container {
         background-color: #F8FAFC;
     }
-    /* Button styling */
     div.stButton > button {
         background-color: #2563EB;
         color: white;
@@ -141,9 +140,10 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # App header with custom styling
-st.markdown('<div class="main-header">🏠 Real Estate Price Prediction App</div>', unsafe_allow_html=True)
-st.markdown('<div class="info-box">This app predicts real estate prices based on property features!</div>', unsafe_allow_html=True)
+st.markdown('<div class="main-header">🏠 تطبيق توقع أسعار العقارات</div>', unsafe_allow_html=True)
+st.markdown('<div class="info-box">هذا التطبيق يتوقع أسعار العقارات بناءً على خصائص العقار!</div>', unsafe_allow_html=True)
 
+# باقي الكود الأصلي يبقى كما هو بدون تغيير
 # Supabase connection
 @st.cache_resource
 def init_connection():
@@ -290,33 +290,33 @@ df = load_data()
 
 if not df.empty:
     st.session_state['db_connected'] = True
-    st.markdown('<div class="success-box">✅ Data loaded successfully from Supabase!</div>', unsafe_allow_html=True)
+    st.markdown('<div class="success-box">✅ تم تحميل البيانات بنجاح من Supabase!</div>', unsafe_allow_html=True)
     
     # Create two main columns for the layout
     col1, col2 = st.columns([1, 2])
     
     # Sidebar for inputs with improved styling
     with st.sidebar:
-        st.markdown('<div class="sub-header">Enter Property Details</div>', unsafe_allow_html=True)
-        neighborhood = st.selectbox("Neighborhood", sorted(df['neighborhood_name'].unique()))
-        classification = st.selectbox("Classification", sorted(df['classification_name'].unique()))
-        property_type = st.selectbox("Property Type", sorted(df['property_type_name'].unique()))
+        st.markdown('<div class="sub-header">أدخل تفاصيل العقار</div>', unsafe_allow_html=True)
+        neighborhood = st.selectbox("الحي", sorted(df['neighborhood_name'].unique()))
+        classification = st.selectbox("التصنيف", sorted(df['classification_name'].unique()))
+        property_type = st.selectbox("نوع العقار", sorted(df['property_type_name'].unique()))
         
         # Area slider
         area_min = float(df['area'].min())
         area_max = 1500.0
         default_area = min(float(df['area'].median()), area_max)
         
-        st.markdown("### Area (m²)")
+        st.markdown("### المساحة (م²)")
         area = st.slider("", 
                          min_value=area_min, 
                          max_value=area_max,
                          value=default_area,
-                         format="%.2f m²")
+                         format="%.2f م²")
         
         st.markdown("<br>", unsafe_allow_html=True)
         
-        calculate_button = st.button("Calculate Price Prediction", use_container_width=True)
+        calculate_button = st.button("حساب السعر المتوقع", use_container_width=True)
     
     @st.cache_resource
     def train_model(data):
@@ -352,30 +352,30 @@ if not df.empty:
             prediction = model.predict(input_processed)[0]
             
             st.markdown('<div class="prediction-box">', unsafe_allow_html=True)
-            st.markdown('<div style="font-size: 1.5rem; color: #6B7280;">Estimated Property Price</div>', unsafe_allow_html=True)
+            st.markdown('<div style="font-size: 1.5rem; color: #6B7280;">السعر المتوقع للعقار</div>', unsafe_allow_html=True)
             st.markdown(f'<div style="font-size: 3rem; font-weight: bold; color: #1E3A8A; margin: 1rem 0;">${prediction:,.2f}</div>', unsafe_allow_html=True)
-            st.markdown('<div style="font-size: 0.875rem; color: #6B7280;">Based on property attributes and market data</div>', unsafe_allow_html=True)
+            st.markdown('<div style="font-size: 0.875rem; color: #6B7280;">بناءً على خصائص العقار وبيانات السوق</div>', unsafe_allow_html=True)
             st.markdown('</div>', unsafe_allow_html=True)
             
             st.markdown("""
             <div style="background-color: #F8FAFC; padding: 1.5rem; border-radius: 0.75rem; margin-bottom: 2rem; box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);">
-                <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 1rem; color: #1E3A8A;">Property Details</div>
+                <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 1rem; color: #1E3A8A;">تفاصيل العقار</div>
                 <table style="width: 100%; border-collapse: collapse;">
                     <tr>
-                        <td style="padding: 0.5rem; border-bottom: 1px solid #E5E7EB; color: #6B7280;">Neighborhood</td>
+                        <td style="padding: 0.5rem; border-bottom: 1px solid #E5E7EB; color: #6B7280;">الحي</td>
                         <td style="padding: 0.5rem; border-bottom: 1px solid #E5E7EB; font-weight: 500;">{}</td>
                     </tr>
                     <tr>
-                        <td style="padding: 0.5rem; border-bottom: 1px solid #E5E7EB; color: #6B7280;">Classification</td>
+                        <td style="padding: 0.5rem; border-bottom: 1px solid #E5E7EB; color: #6B7280;">التصنيف</td>
                         <td style="padding: 0.5rem; border-bottom: 1px solid #E5E7EB; font-weight: 500;">{}</td>
                     </tr>
                     <tr>
-                        <td style="padding: 0.5rem; border-bottom: 1px solid #E5E7EB; color: #6B7280;">Property Type</td>
+                        <td style="padding: 0.5rem; border-bottom: 1px solid #E5E7EB; color: #6B7280;">نوع العقار</td>
                         <td style="padding: 0.5rem; border-bottom: 1px solid #E5E7EB; font-weight: 500;">{}</td>
                     </tr>
                     <tr>
-                        <td style="padding: 0.5rem; color: #6B7280;">Area</td>
-                        <td style="padding: 0.5rem; font-weight: 500;">{:.2f} m²</td>
+                        <td style="padding: 0.5rem; color: #6B7280;">المساحة</td>
+                        <td style="padding: 0.5rem; font-weight: 500;">{:.2f} م²</td>
                     </tr>
                 </table>
             </div>
@@ -384,15 +384,15 @@ if not df.empty:
         except Exception as e:
             st.error(f"Prediction failed: {str(e)}")
     
-    st.markdown('<div class="sub-header">Market Analysis</div>', unsafe_allow_html=True)
+    st.markdown('<div class="sub-header">تحليل السوق</div>', unsafe_allow_html=True)
     
-    tab1, tab2, tab3 = st.tabs(["Price Distribution", "Area vs Price", "Feature Importance"])
+    tab1, tab2, tab3 = st.tabs(["توزيع الأسعار", "المساحة مقابل السعر", "أهمية الخصائص"])
     
     with tab1:
         try:
             fig = px.histogram(df, x='price', 
-                              title='Price Distribution in the Market',
-                              labels={'price': 'Price ($)', 'count': 'Number of Properties'},
+                              title='توزيع الأسعار في السوق',
+                              labels={'price': 'السعر ($)', 'count': 'عدد العقارات'},
                               color_discrete_sequence=['#3B82F6'])
             fig.update_layout(
                 title_font_size=20,
@@ -411,8 +411,8 @@ if not df.empty:
         try:
             fig = px.scatter(df, x='area', y='price', 
                              color='neighborhood_name',
-                             title='Area vs Price by Neighborhood',
-                             labels={'area': 'Area (m²)', 'price': 'Price ($)', 'neighborhood_name': 'Neighborhood'},
+                             title='المساحة مقابل السعر حسب الحي',
+                             labels={'area': 'المساحة (م²)', 'price': 'السعر ($)', 'neighborhood_name': 'الحي'},
                              hover_data=['classification_name', 'property_type_name'])
             fig.update_layout(
                 title_font_size=20,
@@ -436,8 +436,8 @@ if not df.empty:
                 }).sort_values('Importance', ascending=False)
                 fig = px.bar(importance_df, x='Importance', y='Feature', 
                              orientation='h',
-                             title='Feature Importance in Price Prediction',
-                             labels={'Importance': 'Importance Score', 'Feature': 'Property Feature'},
+                             title='أهمية الخصائص في توقع السعر',
+                             labels={'Importance': 'درجة الأهمية', 'Feature': 'خاصية العقار'},
                              color_discrete_sequence=['#3B82F6'])
                 fig.update_layout(
                     title_font_size=20,
@@ -451,26 +451,26 @@ if not df.empty:
         except Exception as e:
             st.error(f"Feature importance visualization error: {str(e)}")
             
-    st.markdown('<div class="sub-header">Similar Properties</div>', unsafe_allow_html=True)
-    st.markdown('<div style="font-size: 0.875rem; color: #6B7280; margin-bottom: 1rem;">Properties in the same neighborhood for comparison</div>', unsafe_allow_html=True)
+    st.markdown('<div class="sub-header">عقارات مشابهة</div>', unsafe_allow_html=True)
+    st.markdown('<div style="font-size: 0.875rem; color: #6B7280; margin-bottom: 1rem;">عقارات في نفس الحي للمقارنة</div>', unsafe_allow_html=True)
     
     similar = df[df['neighborhood_name'] == neighborhood]
     if not similar.empty:
         st.dataframe(
             similar[['property_type_name', 'classification_name', 'area', 'price']].head(5),
             column_config={
-                'property_type_name': 'Property Type',
-                'classification_name': 'Classification',
-                'area': st.column_config.NumberColumn('Area (m²)', format="%.2f"),
-                'price': st.column_config.NumberColumn('Price ($)', format="$%d")
+                'property_type_name': 'نوع العقار',
+                'classification_name': 'التصنيف',
+                'area': st.column_config.NumberColumn('المساحة (م²)', format="%.2f"),
+                'price': st.column_config.NumberColumn('السعر ($)', format="$%d")
             },
             use_container_width=True,
             hide_index=True
         )
         
         fig = px.scatter(similar, x='area', y='price', 
-                         title=f'Price vs Area in {neighborhood}',
-                         labels={'area': 'Area (m²)', 'price': 'Price ($)'},
+                         title=f'السعر مقابل المساحة في حي {neighborhood}',
+                         labels={'area': 'المساحة (م²)', 'price': 'السعر ($)'},
                          hover_data=['classification_name', 'property_type_name'],
                          color_discrete_sequence=['#3B82F6'])
         fig.update_layout(
@@ -486,19 +486,19 @@ if not df.empty:
             y=[prediction] if 'prediction' in locals() else [0],
             mode='markers',
             marker=dict(color='red', size=12, symbol='star'),
-            name='Your Selection',
+            name='اختيارك',
             hoverinfo='name'
         )
         st.plotly_chart(fig, use_container_width=True)
     else:
-        st.warning("No similar properties found in this neighborhood")
+        st.warning("لا توجد عقارات مشابهة في هذا الحي")
 
     st.markdown("""
     <div style="margin-top: 4rem; padding-top: 1rem; border-top: 1px solid #E5E7EB; text-align: center; color: #6B7280; font-size: 0.875rem;">
-        <p>Real Estate Price Prediction App | Powered by Machine Learning</p>
-        <p>Data is updated daily from our real estate database</p>
+        <p>تطبيق توقع أسعار العقارات | مدعوم بتعلم الآلة</p>
+        <p>يتم تحديث البيانات يوميًا من قاعدة بيانات العقارات</p>
     </div>
     """, unsafe_allow_html=True)
 
 else:
-    st.error("Failed to load data from Supabase. Please check your database connection and table structure.")
+    st.error("فشل تحميل البيانات من Supabase. يرجى التحقق من اتصال قاعدة البيانات وهيكل الجدول")
