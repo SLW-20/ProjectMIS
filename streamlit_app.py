@@ -58,7 +58,7 @@ try:
     
     # Display the logo and the project text under it in the same container
     st.markdown('<div class="logo-container">', unsafe_allow_html=True)
-    st.image(logo, width=250)  # تكبير الشعار بإعدادات العرض
+    st.image(logo, width=200)  # تكبير الشعار بإعدادات العرض
     st.markdown(
         '<p style="color: black; font-size: 14px; margin-top: 5px;">MIS Graduation Project</p>',
         unsafe_allow_html=True
