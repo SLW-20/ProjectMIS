@@ -6,17 +6,82 @@ import plotly.express as px
 from supabase import create_client
 import os
 
-# Page config
-st.set_page_config(page_title="Real Estate Price Prediction", layout="wide")
+# Enhanced page configuration with custom theme
+st.set_page_config(
+    page_title="Real Estate Price Prediction", 
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
-# App title
-st.title('🏠 Real Estate Price Prediction App')
-st.info('This app predicts real estate prices based on property features!')
+# Custom CSS to improve the design
+st.markdown("""
+<style>
+    .main-header {
+        font-size: 3rem;
+        font-weight: 700;
+        color: #1E3A8A;
+        margin-bottom: 1rem;
+    }
+    .sub-header {
+        font-size: 1.5rem;
+        font-weight: 500;
+        color: #374151;
+    }
+    .success-box {
+        background-color: #ECFDF5;
+        padding: 1rem;
+        border-radius: 0.5rem;
+        border-left: 5px solid #10B981;
+        margin-bottom: 1rem;
+    }
+    .info-box {
+        background-color: #EFF6FF;
+        padding: 1rem;
+        border-radius: 0.5rem;
+        border-left: 5px solid #3B82F6;
+        margin-bottom: 1rem;
+    }
+    .prediction-box {
+        background-color: #F8FAFC;
+        padding: 2rem;
+        border-radius: 0.75rem;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        text-align: center;
+        margin: 1.5rem 0;
+    }
+    .sidebar .block-container {
+        padding-top: 2rem;
+    }
+    /* Custom styling for expanders */
+    .streamlit-expanderHeader {
+        font-weight: 600;
+        color: #1E3A8A;
+    }
+    /* Improve sidebar styling */
+    .sidebar .block-container {
+        background-color: #F8FAFC;
+    }
+    /* Button styling */
+    div.stButton > button {
+        background-color: #2563EB;
+        color: white;
+        border-radius: 0.5rem;
+        padding: 0.5rem 1rem;
+        font-weight: 500;
+    }
+    div.stButton > button:hover {
+        background-color: #1D4ED8;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# App header with custom styling
+st.markdown('<div class="main-header">🏠 Real Estate Price Prediction App</div>', unsafe_allow_html=True)
+st.markdown('<div class="info-box">This app predicts real estate prices based on property features!</div>', unsafe_allow_html=True)
 
 # Supabase connection
 @st.cache_resource
 def init_connection():
-    # Using the provided Supabase credentials
     supabase_url = "https://imdnhiwyfgjdgextvrkj.supabase.co"
     supabase_key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImltZG5oaXd5ZmdqZGdleHR2cmtqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mzk3MTM5NzksImV4cCI6MjA1NTI4OTk3OX0.9hIzkJYKrOTsKTKwjAyHRWBG2Rqe2Sgwq7WgddqLTDk"
     
@@ -26,25 +91,6 @@ def init_connection():
         st.error(f"Failed to connect to Supabase: {str(e)}")
         return None
 
-# Debug function to show table structure
-def debug_table_structure(table_name):
-    try:
-        supabase = init_connection()
-        if not supabase:
-            return
-        
-        # Get the first row to see columns
-        response = supabase.table(table_name).select('*').limit(1).execute()
-        
-        if response.data:
-            sample_row = response.data[0]
-            st.write(f"### {table_name} columns:")
-            st.json(sample_row)
-        else:
-            st.warning(f"No data in {table_name} table")
-    except Exception as e:
-        st.error(f"Error inspecting {table_name}: {str(e)}")
-
 # Load reference tables to get names from IDs
 @st.cache_data(ttl=600)
 def load_reference_data():
@@ -52,9 +98,6 @@ def load_reference_data():
         supabase = init_connection()
         if not supabase:
             return {}, {}, {}
-        
-        # Debug flag to show detailed error information
-        debug_mode = True
             
         # Try to load neighborhood reference table
         neighborhood_dict = {}
@@ -67,13 +110,8 @@ def load_reference_data():
                 # Fallback to generic 'id' and 'name'
                 elif 'id' in neighborhood_response.data[0] and 'name' in neighborhood_response.data[0]:
                     neighborhood_dict = {item['id']: item['name'] for item in neighborhood_response.data}
-                # Last resort: print actual keys to help debug
-                else:
-                    if debug_mode:
-                        st.warning(f"Unexpected neighborhood columns: {list(neighborhood_response.data[0].keys())}")
-        except Exception as e:
-            if debug_mode:
-                st.warning(f"Could not load neighborhoods table: {type(e).__name__}: {str(e)}")
+        except Exception:
+            pass
             
         # Try to load property type reference table
         property_type_dict = {}
@@ -91,13 +129,8 @@ def load_reference_data():
                 # Fallback to generic 'id' and 'name'
                 elif 'id' in property_type_response.data[0] and 'name' in property_type_response.data[0]:
                     property_type_dict = {item['id']: item['name'] for item in property_type_response.data}
-                # Last resort: print actual keys to help debug
-                else:
-                    if debug_mode:
-                        st.warning(f"Unexpected property type columns: {list(property_type_response.data[0].keys())}")
-        except Exception as e:
-            if debug_mode:
-                st.warning(f"Could not load property type table: {type(e).__name__}: {str(e)}")
+        except Exception:
+            pass
             
         # Try to load classification reference table
         classification_dict = {}
@@ -118,13 +151,8 @@ def load_reference_data():
                 # Fallback to generic 'id' and 'name'
                 elif 'id' in classification_response.data[0] and 'name' in classification_response.data[0]:
                     classification_dict = {item['id']: item['name'] for item in classification_response.data}
-                # Last resort: print actual keys to help debug
-                else:
-                    if debug_mode:
-                        st.warning(f"Unexpected classification columns: {list(classification_response.data[0].keys())}")
-        except Exception as e:
-            if debug_mode:
-                st.warning(f"Could not load classification table: {type(e).__name__}: {str(e)}")
+        except Exception:
+            pass
             
         return neighborhood_dict, property_type_dict, classification_dict
     except Exception as e:
@@ -149,9 +177,6 @@ def load_data():
         if df.empty:
             raise ValueError("No data returned from database")
         
-        # Debug: Show actual columns in the properties table
-        st.write("Properties table columns:", list(df.columns))
-            
         # Identify ID columns - handle different possible naming conventions
         neighborhood_id_col = next((col for col in df.columns if col in ['neighborhood_id', 'neighborhood']), None)
         property_type_id_col = next((col for col in df.columns if col in ['property_type_id', 'property_type']), None)
@@ -210,66 +235,48 @@ def load_data():
 if 'db_connected' not in st.session_state:
     st.session_state['db_connected'] = False
 
-# Show debug tools
-with st.expander("Database Debug Tools"):
-    st.write("Use these tools to inspect your database tables")
-    debug_table = st.selectbox("Select table to inspect", 
-                          ["neighborhoods", "property_type", "property_classifications", "properties"])
-    if st.button("Inspect Table Structure"):
-        debug_table_structure(debug_table)
-
 # Load data
 df = load_data()
 
 if not df.empty:
     st.session_state['db_connected'] = True
-    st.success("Data loaded successfully from Supabase!")
+    st.markdown('<div class="success-box">✅ Data loaded successfully from Supabase!</div>', unsafe_allow_html=True)
     
-    # Data Overview
-    with st.expander("Data Overview"):
-        col1, col2 = st.columns(2)
-        with col1:
-            st.write("### Raw Data Sample")
-            st.dataframe(df.head())
-        with col2:
-            st.write("### Data Statistics")
-            st.dataframe(df.describe())
-
-        # Visualizations
-        try:
-            col1, col2 = st.columns(2)
-            with col1:
-                fig = px.histogram(df, x='price', title='Price Distribution')
-                st.plotly_chart(fig)
-            with col2:
-                fig = px.scatter(df, x='area', y='price', color='neighborhood_name',
-                               title='Area vs Price by Neighborhood')
-                st.plotly_chart(fig)
-        except Exception as e:
-            st.error(f"Visualization error: {str(e)}")
-
-    # Sidebar inputs
+    # Create two main columns for the layout
+    col1, col2 = st.columns([1, 2])
+    
+    # Sidebar for inputs with improved styling
     with st.sidebar:
-        st.header("Enter Property Details")
+        st.markdown('<div class="sub-header">Enter Property Details</div>', unsafe_allow_html=True)
         neighborhood = st.selectbox("Neighborhood", sorted(df['neighborhood_name'].unique()))
         classification = st.selectbox("Classification", sorted(df['classification_name'].unique()))
         property_type = st.selectbox("Property Type", sorted(df['property_type_name'].unique()))
         
-        # Modified area slider with max 1500
+        # Area slider with better styling
         area_min = float(df['area'].min())
         area_max = 1500.0  # Hard-coded maximum
         default_area = min(float(df['area'].median()), area_max)  # Ensure default doesn't exceed max
-        area = st.slider("Area (m²)", 
+        
+        st.markdown("### Area (m²)")
+        area = st.slider("", 
                         min_value=area_min, 
                         max_value=area_max,
-                        value=default_area)
-
-    # Model training
+                        value=default_area,
+                        format="%.2f m²")
+        
+        # Add some space
+        st.markdown("<br>", unsafe_allow_html=True)
+        
+        # Add a "Calculate" button for better UX
+        calculate_button = st.button("Calculate Price Prediction", use_container_width=True)
+    
+    # Main content area with improved design
+    # Model training (keep it outside the button check as it's cached)
     @st.cache_resource
     def train_model(data):
         try:
             X = pd.get_dummies(data[['neighborhood_name', 'classification_name',
-                                   'property_type_name', 'area']], drop_first=True)
+                               'property_type_name', 'area']], drop_first=True)
             y = data['price']
             model = RandomForestRegressor(n_estimators=100, random_state=42)
             model.fit(X, y)
@@ -279,7 +286,8 @@ if not df.empty:
             return None, None
 
     model, feature_columns = train_model(df)
-
+    
+    # Prediction section (moved to main area)
     if model and feature_columns:
         # Prepare input features
         input_df = pd.DataFrame([{
@@ -301,122 +309,164 @@ if not df.empty:
         # Make prediction
         try:
             prediction = model.predict(input_processed)[0]
-            st.markdown(f"## Predicted Price: **${prediction:,.2f}**")
             
-            # Feature importance
-            with st.expander("Feature Importance"):
+            # Display prediction with enhanced styling
+            st.markdown('<div class="prediction-box">', unsafe_allow_html=True)
+            st.markdown(f'<div style="font-size: 1.5rem; color: #6B7280;">Estimated Property Price</div>', unsafe_allow_html=True)
+            st.markdown(f'<div style="font-size: 3rem; font-weight: bold; color: #1E3A8A; margin: 1rem 0;">${prediction:,.2f}</div>', unsafe_allow_html=True)
+            st.markdown('<div style="font-size: 0.875rem; color: #6B7280;">Based on property attributes and market data</div>', unsafe_allow_html=True)
+            st.markdown('</div>', unsafe_allow_html=True)
+            
+            # Property details summary card
+            st.markdown("""
+            <div style="background-color: #F8FAFC; padding: 1.5rem; border-radius: 0.75rem; margin-bottom: 2rem; box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);">
+                <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 1rem; color: #1E3A8A;">Property Details</div>
+                <table style="width: 100%; border-collapse: collapse;">
+                    <tr>
+                        <td style="padding: 0.5rem; border-bottom: 1px solid #E5E7EB; color: #6B7280;">Neighborhood</td>
+                        <td style="padding: 0.5rem; border-bottom: 1px solid #E5E7EB; font-weight: 500;">{}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 0.5rem; border-bottom: 1px solid #E5E7EB; color: #6B7280;">Classification</td>
+                        <td style="padding: 0.5rem; border-bottom: 1px solid #E5E7EB; font-weight: 500;">{}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 0.5rem; border-bottom: 1px solid #E5E7EB; color: #6B7280;">Property Type</td>
+                        <td style="padding: 0.5rem; border-bottom: 1px solid #E5E7EB; font-weight: 500;">{}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 0.5rem; color: #6B7280;">Area</td>
+                        <td style="padding: 0.5rem; font-weight: 500;">{:.2f} m²</td>
+                    </tr>
+                </table>
+            </div>
+            """.format(neighborhood, classification, property_type, area), unsafe_allow_html=True)
+            
+        except Exception as e:
+            st.error(f"Prediction failed: {str(e)}")
+    
+    # Data exploration section with improved design
+    st.markdown('<div class="sub-header">Market Analysis</div>', unsafe_allow_html=True)
+    
+    # Tabs for different visualizations
+    tab1, tab2, tab3 = st.tabs(["Price Distribution", "Area vs Price", "Feature Importance"])
+    
+    with tab1:
+        try:
+            fig = px.histogram(df, x='price', 
+                              title='Price Distribution in the Market',
+                              labels={'price': 'Price ($)', 'count': 'Number of Properties'},
+                              color_discrete_sequence=['#3B82F6'])
+            fig.update_layout(
+                title_font_size=20,
+                plot_bgcolor='white',
+                paper_bgcolor='white',
+                bargap=0.1,
+                margin=dict(l=20, r=20, t=40, b=20),
+                xaxis_title_font_size=14,
+                yaxis_title_font_size=14
+            )
+            st.plotly_chart(fig, use_container_width=True)
+        except Exception as e:
+            st.error(f"Visualization error: {str(e)}")
+            
+    with tab2:
+        try:
+            fig = px.scatter(df, x='area', y='price', 
+                           color='neighborhood_name',
+                           title='Area vs Price by Neighborhood',
+                           labels={'area': 'Area (m²)', 'price': 'Price ($)', 'neighborhood_name': 'Neighborhood'},
+                           hover_data=['classification_name', 'property_type_name'])
+            fig.update_layout(
+                title_font_size=20,
+                legend_title_font_size=14,
+                plot_bgcolor='white',
+                paper_bgcolor='white',
+                margin=dict(l=20, r=20, t=40, b=20),
+                xaxis_title_font_size=14,
+                yaxis_title_font_size=14
+            )
+            st.plotly_chart(fig, use_container_width=True)
+        except Exception as e:
+            st.error(f"Visualization error: {str(e)}")
+    
+    with tab3:
+        try:
+            if model and feature_columns:
                 importance_df = pd.DataFrame({
                     'Feature': feature_columns,
                     'Importance': model.feature_importances_
                 }).sort_values('Importance', ascending=False)
-                fig = px.bar(importance_df, x='Importance', y='Feature', orientation='h')
-                st.plotly_chart(fig)
-                
+                fig = px.bar(importance_df, x='Importance', y='Feature', 
+                           orientation='h',
+                           title='Feature Importance in Price Prediction',
+                           labels={'Importance': 'Importance Score', 'Feature': 'Property Feature'},
+                           color_discrete_sequence=['#3B82F6'])
+                fig.update_layout(
+                    title_font_size=20,
+                    plot_bgcolor='white',
+                    paper_bgcolor='white',
+                    margin=dict(l=20, r=20, t=40, b=20),
+                    xaxis_title_font_size=14,
+                    yaxis_title_font_size=14
+                )
+                st.plotly_chart(fig, use_container_width=True)
         except Exception as e:
-            st.error(f"Prediction failed: {str(e)}")
+            st.error(f"Feature importance visualization error: {str(e)}")
+            
+    # Similar properties section with improved design
+    st.markdown('<div class="sub-header">Similar Properties</div>', unsafe_allow_html=True)
+    st.markdown('<div style="font-size: 0.875rem; color: #6B7280; margin-bottom: 1rem;">Properties in the same neighborhood for comparison</div>', unsafe_allow_html=True)
+    
+    similar = df[df['neighborhood_name'] == neighborhood]
+    if not similar.empty:
+        # Display similar properties in a more appealing table
+        st.dataframe(
+            similar[['property_type_name', 'classification_name', 'area', 'price']].head(5),
+            column_config={
+                'property_type_name': 'Property Type',
+                'classification_name': 'Classification',
+                'area': st.column_config.NumberColumn('Area (m²)', format="%.2f"),
+                'price': st.column_config.NumberColumn('Price ($)', format="$%d")
+            },
+            use_container_width=True,
+            hide_index=True
+        )
+        
+        # Add scatter plot of similar properties
+        fig = px.scatter(similar, x='area', y='price', 
+                       title=f'Price vs Area in {neighborhood}',
+                       labels={'area': 'Area (m²)', 'price': 'Price ($)'},
+                       hover_data=['classification_name', 'property_type_name'],
+                       color_discrete_sequence=['#3B82F6'])
+        fig.update_layout(
+            title_font_size=18,
+            plot_bgcolor='white',
+            paper_bgcolor='white',
+            margin=dict(l=20, r=20, t=40, b=20),
+            xaxis_title_font_size=14,
+            yaxis_title_font_size=14
+        )
+        # Add a point for the current property selection
+        fig.add_scatter(
+            x=[area], 
+            y=[prediction] if 'prediction' in locals() else [0],
+            mode='markers',
+            marker=dict(color='red', size=12, symbol='star'),
+            name='Your Selection',
+            hoverinfo='name'
+        )
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.warning("No similar properties found in this neighborhood")
 
-    # Similar properties section
-    with st.expander("Similar Properties"):
-        similar = df[df['neighborhood_name'] == neighborhood]
-        if not similar.empty:
-            st.dataframe(similar.head())
-            fig = px.scatter(similar, x='area', y='price', 
-                            hover_data=['classification_name', 'property_type_name'])
-            st.plotly_chart(fig)
-        else:
-            st.warning("No similar properties found in this neighborhood")
+    # Add a footer with app information
+    st.markdown("""
+    <div style="margin-top: 4rem; padding-top: 1rem; border-top: 1px solid #E5E7EB; text-align: center; color: #6B7280; font-size: 0.875rem;">
+        <p>Real Estate Price Prediction App | Powered by Machine Learning</p>
+        <p>Data is updated daily from our real estate database</p>
+    </div>
+    """, unsafe_allow_html=True)
 
 else:
     st.error("Failed to load data from Supabase. Please check your database connection and table structure.")
-    
-    # Display database inspection tool
-    st.warning("""
-    ### Database Structure
-    
-    Your properties table should have these columns:
-    - property_id
-    - area (numeric)
-    - price (numeric)
-    - property_type_id
-    - classification_id
-    - neighborhood_id
-    
-    And you need these reference tables:
-    
-    1. A 'neighborhoods' table with 'neighborhood_id' and 'neighborhood_name' columns
-    2. A 'property_type' (or 'property_types') table with 'property_type_id' and 'property_type_name' columns
-    3. A 'property_classifications' (or 'classifications') table with 'classification_id' and 'classification_name' columns
-    
-    These tables should connect to your properties table via their ID fields.
-    """)
-    
-    # Create table structure tool
-    with st.expander("Create Reference Tables"):
-        st.write("""
-        If you don't already have reference tables, you can create them with this SQL:
-        
-        ```sql
-        -- Create neighborhoods table (if it doesn't exist)
-        CREATE TABLE IF NOT EXISTS neighborhoods (
-          neighborhood_id TEXT PRIMARY KEY,
-          neighborhood_name VARCHAR NOT NULL
-        );
-        
-        -- Create property_type table (if it doesn't exist)
-        CREATE TABLE IF NOT EXISTS property_type (
-          property_type_id TEXT PRIMARY KEY,
-          property_type_name VARCHAR NOT NULL
-        );
-        
-        -- Create property_classifications table (if it doesn't exist)
-        CREATE TABLE IF NOT EXISTS property_classifications (
-          classification_id TEXT PRIMARY KEY,
-          classification_name VARCHAR NOT NULL
-        );
-        ```
-        
-        Then populate them with your data.
-        """)
-        
-        # Simple tool to create test data
-        st.write("### Quick Reference Data Creator")
-        st.write("Use this to create simple reference data for testing:")
-        
-        table_options = {
-            "neighborhoods": ("neighborhood_id", "neighborhood_name"),
-            "property_type": ("property_type_id", "property_type_name"),
-            "property_classifications": ("classification_id", "classification_name")
-        }
-        
-        table_option = st.selectbox(
-            "Select table to create:",
-            list(table_options.keys())
-        )
-        
-        id_col, name_col = table_options[table_option]
-        
-        num_items = st.number_input("Number of items to create:", min_value=1, max_value=20, value=5)
-        
-        if st.button(f"Create {table_option} data"):
-            try:
-                supabase = init_connection()
-                
-                # Create example data
-                data = []
-                prefix = table_option[0:3].upper()
-                for i in range(1, num_items + 1):
-                    data.append({
-                        id_col: f"{prefix}-{i:03d}",
-                        name_col: f"{table_option.title().replace('_', ' ')} {i}"
-                    })
-                
-                # Insert data
-                response = supabase.table(table_option).insert(data).execute()
-                
-                if response.data:
-                    st.success(f"Created {len(response.data)} items in {table_option} table")
-                    st.write("Data:", response.data)
-                else:
-                    st.error("Failed to create data")
-            except Exception as e:
-                st.error(f"Error creating reference data: {str(e)}")
