@@ -154,7 +154,7 @@ st.markdown('<div class="info-box">This app predicts real estate prices based on
 def init_connection():
     supabase_url = "https://imdnhiwyfgjdgextvrkj.supabase.co"
     supabase_key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImltZG5oaXd5ZmdqZGdleHR2cmtqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mzk3MTM5NzksImV4cCI6MjA1NTI4OTk3OX0.9hIzkJYKrOTsKTKwjAyHRWBG2Rqe2Sgwq7WgddqLTDk"
-    
+
     try:
         return create_client(supabase_url, supabase_key)
     except Exception as e:
