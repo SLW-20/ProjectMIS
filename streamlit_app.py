@@ -14,7 +14,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# تحميل شعار جامعة الملك خالد وعرضه في الزاوية العلوية اليمنى
+# تحميل شعار جامعة الملك خالد وعرضه في الزاوية العلوية اليمنى مع التعديلات المطلوبة
 try:
     # Check if file exists in current directory
     if os.path.exists('kku.logo.jpg'):
@@ -49,15 +49,20 @@ try:
             top: 14px;
             right: 30px;
             z-index: 1000;
+            text-align: center;
         }
         </style>
         """,
         unsafe_allow_html=True
     )
     
-    # Display the logo
+    # Display the logo and the project text under it in the same container
     st.markdown('<div class="logo-container">', unsafe_allow_html=True)
-    st.image(logo, width=100)
+    st.image(logo, width=150)  # تكبير الشعار بإعدادات العرض
+    st.markdown(
+        '<p style="color: black; font-size: 14px; margin-top: 5px;">MIS Graduation Project</p>',
+        unsafe_allow_html=True
+    )
     st.markdown('</div>', unsafe_allow_html=True)
     
     # Confirm logo display
