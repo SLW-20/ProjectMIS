@@ -319,8 +319,9 @@ if not df.empty:
     @st.cache_resource
     def train_model(data):
         try:
+            # One-hot encode without dropping the first category to include all indicator columns
             X = pd.get_dummies(data[['neighborhood_name', 'classification_name',
-                                     'property_type_name', 'area']], drop_first=True)
+                                     'property_type_name', 'area']])
             y = data['price']
             model = RandomForestRegressor(n_estimators=100, random_state=42)
             model.fit(X, y)
@@ -339,11 +340,15 @@ if not df.empty:
             'area': area
         }])
         
-        input_processed = pd.get_dummies(input_df, drop_first=True)
+        # One-hot encode input without dropping any category
+        input_processed = pd.get_dummies(input_df)
         
+        # Ensure all expected feature columns are available; if missing, add with value 0
         for col in feature_columns:
             if col not in input_processed.columns:
                 input_processed[col] = 0
+        
+        # Reorder columns to match the training data
         input_processed = input_processed[feature_columns]
         
         try:
