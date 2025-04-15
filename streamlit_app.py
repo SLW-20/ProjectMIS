@@ -388,7 +388,7 @@ if not df.empty:
     
     st.markdown('<div class="sub-header">Market Analysis</div>', unsafe_allow_html=True)
     
-    tab1, tab2, tab3 = st.tabs(["Price Distribution", "Area vs Price", "Feature Impact Analysis"])
+    tab1, tab2, tab3 = st.tabs(["Price Distribution", "Area vs Price", "Model Performance"])
     
     with tab1:
         try:
@@ -435,75 +435,42 @@ if not df.empty:
     
     with tab3:
         try:
-            if model and feature_columns:
-                # Create a DataFrame of feature importance from the model
-                importance_df = pd.DataFrame({
-                    'Feature': feature_columns,
-                    'Impact': model.feature_importances_
-                }).sort_values('Impact', ascending=True)
-                
-                # Improved horizontal bar chart with annotations for better design
-                fig = px.bar(importance_df, x='Impact', y='Feature', 
-                             orientation='h',
-                             title='Feature Impact Analysis',
-                             labels={'Impact': 'Impact Score', 'Feature': 'Property Feature'},
-                             color='Impact',
-                             color_continuous_scale=px.colors.sequential.Bluered)
-                fig.update_layout(
-                    title_font_size=20,
-                    plot_bgcolor='white',
-                    paper_bgcolor='white',
-                    margin=dict(l=20, r=20, t=40, b=20),
-                    xaxis_title_font_size=14,
-                    yaxis_title_font_size=14,
-                    coloraxis_showscale=False
-                )
-                st.plotly_chart(fig, use_container_width=True)
-        except Exception as e:
-            st.error(f"Feature impact visualization error: {str(e)}")
+            # Prepare training features for model performance evaluation
+            X_train = pd.get_dummies(df[['neighborhood_name', 'classification_name', 'property_type_name', 'area']])
+            for col in feature_columns:
+                if col not in X_train.columns:
+                    X_train[col] = 0
+            X_train = X_train[feature_columns]
+            y_actual = df['price']
+            y_pred = model.predict(X_train)
             
-    st.markdown('<div class="sub-header">Similar Properties</div>', unsafe_allow_html=True)
-    st.markdown('<div style="font-size: 0.875rem; color: #6B7280; margin-bottom: 1rem;">Properties in the same neighborhood for comparison</div>', unsafe_allow_html=True)
-    
-    similar = df[df['neighborhood_name'] == neighborhood]
-    if not similar.empty:
-        st.dataframe(
-            similar[['property_type_name', 'classification_name', 'area', 'price']].head(5),
-            column_config={
-                'property_type_name': 'Property Type',
-                'classification_name': 'Classification',
-                'area': st.column_config.NumberColumn('Area (m²)', format="%.2f"),
-                'price': st.column_config.NumberColumn('Price ($)', format="$%d")
-            },
-            use_container_width=True,
-            hide_index=True
-        )
-        
-        fig = px.scatter(similar, x='area', y='price', 
-                         title=f'Price vs Area in {neighborhood}',
-                         labels={'area': 'Area (m²)', 'price': 'Price ($)'},
-                         hover_data=['classification_name', 'property_type_name'],
-                         color_discrete_sequence=['#3B82F6'])
-        fig.update_layout(
-            title_font_size=18,
-            plot_bgcolor='white',
-            paper_bgcolor='white',
-            margin=dict(l=20, r=20, t=40, b=20),
-            xaxis_title_font_size=14,
-            yaxis_title_font_size=14
-        )
-        fig.add_scatter(
-            x=[area], 
-            y=[prediction] if 'prediction' in locals() else [0],
-            mode='markers',
-            marker=dict(color='red', size=12, symbol='star'),
-            name='Your Selection',
-            hoverinfo='name'
-        )
-        st.plotly_chart(fig, use_container_width=True)
-    else:
-        st.warning("No similar properties found in this neighborhood")
-
+            # Scatter plot for Actual vs Predicted Prices with a y=x reference line
+            performance_fig = px.scatter(x=y_actual, y=y_pred,
+                                         labels={'x': 'Actual Price', 'y': 'Predicted Price'},
+                                         title='Model Performance: Actual vs Predicted Prices',
+                                         color_discrete_sequence=['#3B82F6'])
+            performance_fig.add_shape(
+                type='line',
+                x0=y_actual.min(), y0=y_actual.min(),
+                x1=y_actual.max(), y1=y_actual.max(),
+                line=dict(color='red', dash='dash'),
+            )
+            performance_fig.update_layout(
+                plot_bgcolor='white',
+                paper_bgcolor='white',
+                margin=dict(l=20, r=20, t=40, b=20),
+                xaxis_title_font_size=14,
+                yaxis_title_font_size=14,
+                title_font_size=20
+            )
+            st.plotly_chart(performance_fig, use_container_width=True)
+            
+            # Calculate RMSE and display
+            rmse = np.sqrt(np.mean((y_actual - y_pred) ** 2))
+            st.markdown(f"<div style='font-size:1.1rem; color: #374151;'>Model RMSE: <strong>${rmse:,.2f}</strong></div>", unsafe_allow_html=True)
+        except Exception as e:
+            st.error(f"Model performance visualization error: {str(e)}")
+            
     st.markdown("""
     <div style="margin-top: 4rem; padding-top: 1rem; border-top: 1px solid #E5E7EB; text-align: center; color: #6B7280; font-size: 0.875rem;">
         <p>Real Estate Price Prediction App | Powered by Machine Learning</p>
