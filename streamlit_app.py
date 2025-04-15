@@ -60,7 +60,7 @@ try:
     st.markdown('<div class="logo-container">', unsafe_allow_html=True)
     st.image(logo, width=200)  # تكبير الشعار بإعدادات العرض
     st.markdown(
-        '<p style="color: black; font-size: 14px; margin-top: 5px;">MIS Graduation Project</p>',
+        '<p style="color: black; font-size: 17px; margin-top: 10px; foun-weigh: blod;">MIS Graduation Project</p>',
         unsafe_allow_html=True
     )
     st.markdown('</div>', unsafe_allow_html=True)
