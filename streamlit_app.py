@@ -668,7 +668,6 @@ if not df.empty:
                 y='price', 
                 color='neighborhood_name',
                 title='Area vs Price by Neighborhood',
-                labels={'area': 'Area (m²)', 'price': 'Price ($)', 'neighborhood_name': '
                 labels={'area': 'Area (m²)', 'price': 'Price ($)', 'neighborhood_name': 'Neighborhood'},
                 hover_data=['classification_name', 'property_type_name'],
                 trendline=trendline_arg,
