@@ -329,7 +329,7 @@ if not df.empty:
             X = pd.get_dummies(data[['neighborhood_name', 'classification_name',
                                      'property_type_name', 'area']])
             y = data['price']
-            model = RandomForestRegressor(n_estimators=1000, random_state=42)
+            model = RandomForestRegressor(n_estimators=600, random_state=42)
             model.fit(X, y)
             return model, X.columns.tolist()
         except Exception as e:
