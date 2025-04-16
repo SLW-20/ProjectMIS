@@ -2,6 +2,9 @@ import streamlit as st
 import numpy as np
 import pandas as pd
 from sklearn.ensemble import RandomForestRegressor
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import r2_score, mean_squared_error
+
 import plotly.express as px
 from supabase import create_client
 import os
@@ -329,8 +332,16 @@ if not df.empty:
             X = pd.get_dummies(data[['neighborhood_name', 'classification_name',
                                      'property_type_name', 'area']])
             y = data['price']
+
+
+        # Split the data
+        X_train, X_test, y_train, y_test = train_test_split(
+            X, y, test_size=0.2, random_state=42
+        )
+
+            
             model = RandomForestRegressor(n_estimators=600, random_state=42)
-            model.fit(X, y)
+            model.fit(X_train, y_train)
             return model, X.columns.tolist()
         except Exception as e:
             st.error(f"Model training failed: {str(e)}")
@@ -358,7 +369,7 @@ if not df.empty:
         input_processed = input_processed[feature_columns]
         
         try:
-            prediction = model.predict(input_processed)[0]
+            prediction = model.predict(X_test, y_test)
             
             st.markdown('<div class="prediction-box">', unsafe_allow_html=True)
             st.markdown('<div style="font-size: 1.5rem; color: #6B7280;">Estimated Property Price</div>', unsafe_allow_html=True)
