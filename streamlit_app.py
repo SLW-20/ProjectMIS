@@ -1,11 +1,15 @@
 import streamlit as st
 import numpy as np
 import pandas as pd
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
+from sklearn.model_selection import train_test_split, GridSearchCV, cross_val_score
 from sklearn.metrics import r2_score, mean_squared_error
+from sklearn.preprocessing import StandardScaler, RobustScaler
+from sklearn.pipeline import Pipeline
+import xgboost as XGBRegressor
 
 import plotly.express as px
+import plotly.graph_objects as go
 from supabase import create_client
 import os
 from PIL import Image
@@ -145,12 +149,34 @@ st.markdown("""
     div.stButton > button:hover {
         background-color: #1D4ED8;
     }
+    .model-metrics {
+        display: flex;
+        justify-content: space-between;
+        margin-top: 1rem;
+    }
+    .metric-card {
+        background-color: #F3F4F6;
+        border-radius: 0.5rem;
+        padding: 1rem;
+        text-align: center;
+        width: 32%;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    .metric-value {
+        font-size: 1.5rem;
+        font-weight: bold;
+        color: #1E3A8A;
+    }
+    .metric-label {
+        font-size: 0.875rem;
+        color: #4B5563;
+    }
 </style>
 """, unsafe_allow_html=True)
 
 # App header with custom styling
 st.markdown('<div class="main-header">🏠 Real Estate Price Prediction App</div>', unsafe_allow_html=True)
-st.markdown('<div class="info-box">This app predicts real estate prices based on property features!</div>', unsafe_allow_html=True)
+st.markdown('<div class="info-box">This app predicts real estate prices based on property features using advanced machine learning!</div>', unsafe_allow_html=True)
 
 # Supabase connection
 @st.cache_resource
@@ -284,6 +310,26 @@ def load_data():
             df['classification_name'] = df[classification_id_col].map(classification_dict).fillna('Unknown')
         else:
             df['classification_name'] = df[classification_id_col].astype(str) if classification_id_col else 'Unknown'
+        
+        # Add additional engineered features
+        if 'bedrooms' in df.columns:
+            df['bedrooms'] = pd.to_numeric(df['bedrooms'], errors='coerce').fillna(0)
+        else:
+            df['bedrooms'] = 0
+            
+        if 'bathrooms' in df.columns:
+            df['bathrooms'] = pd.to_numeric(df['bathrooms'], errors='coerce').fillna(0)
+        else:
+            df['bathrooms'] = 0
+        
+        # Calculate price per square meter as a new feature
+        df['price_per_sqm'] = df['price'] / df['area']
+        
+        # Remove extreme outliers (keep data within 3 standard deviations)
+        for col in ['price', 'area', 'price_per_sqm']:
+            mean = df[col].mean()
+            std = df[col].std()
+            df = df[(df[col] >= mean - 3*std) & (df[col] <= mean + 3*std)]
             
         return df
     except Exception as e:
@@ -305,6 +351,17 @@ if not df.empty:
     # Sidebar for inputs with improved styling
     with st.sidebar:
         st.markdown('<div class="sub-header">Enter Property Details</div>', unsafe_allow_html=True)
+        
+        # Select model type
+        model_choice = st.selectbox(
+            "Select Model Algorithm",
+            ["Random Forest", "Gradient Boosting", "XGBoost", "Ensemble of Models"],
+            index=2  # Default to XGBoost
+        )
+        
+        st.markdown("<hr>", unsafe_allow_html=True)
+        st.markdown("### Property Information")
+        
         neighborhood = st.selectbox("Neighborhood", sorted(df['neighborhood_name'].unique()))
         classification = st.selectbox("Classification", sorted(df['classification_name'].unique()))
         property_type = st.selectbox("Property Type", sorted(df['property_type_name'].unique()))
@@ -321,44 +378,187 @@ if not df.empty:
                          value=default_area,
                          format="%.2f m²")
         
+        # Add bedrooms and bathrooms if available
+        if 'bedrooms' in df.columns and df['bedrooms'].max() > 0:
+            bedrooms = st.slider("Bedrooms", 
+                                min_value=int(df['bedrooms'].min()), 
+                                max_value=int(df['bedrooms'].max()),
+                                value=int(df['bedrooms'].median()))
+        else:
+            bedrooms = 0
+            
+        if 'bathrooms' in df.columns and df['bathrooms'].max() > 0:
+            bathrooms = st.slider("Bathrooms", 
+                                min_value=int(df['bathrooms'].min()), 
+                                max_value=int(df['bathrooms'].max()),
+                                value=int(df['bathrooms'].median()))
+        else:
+            bathrooms = 0
+        
         st.markdown("<br>", unsafe_allow_html=True)
         
         calculate_button = st.button("Calculate Price Prediction", use_container_width=True)
     
     @st.cache_resource
-    def train_model(data):
+    def train_model(data, model_type="Random Forest"):
         try:
-            # One-hot encode without dropping the first category to include all indicator columns
-            X = pd.get_dummies(data[['neighborhood_name', 'classification_name',
-                                     'property_type_name', 'area']])
-            y = data['price']
-
-
-        # Split the data
-            X_train, X_test, y_train, y_test = train_test_split(
-            X, y, test_size=0.2, random_state=42
-            )
-
+            # Feature engineering
+            feature_cols = ['neighborhood_name', 'classification_name', 'property_type_name', 'area']
             
-            model = RandomForestRegressor(n_estimators=600, random_state=42)
-            model.fit(X_train, y_train)
-            return model, X.columns.tolist()
+            # Add bedrooms and bathrooms if they have meaningful values
+            if 'bedrooms' in data.columns and data['bedrooms'].max() > 0:
+                feature_cols.append('bedrooms')
+            if 'bathrooms' in data.columns and data['bathrooms'].max() > 0:
+                feature_cols.append('bathrooms')
+                
+            # One-hot encode categorical features
+            X = pd.get_dummies(data[feature_cols], drop_first=False)
+            y = data['price']
+            
+            # Split the data with stratification if possible
+            X_train, X_test, y_train, y_test = train_test_split(
+                X, y, test_size=0.2, random_state=42
+            )
+            
+            # Feature scaling for numeric columns
+            numeric_features = ['area']
+            if 'bedrooms' in feature_cols:
+                numeric_features.append('bedrooms')
+            if 'bathrooms' in feature_cols:
+                numeric_features.append('bathrooms')
+            
+            # Identify numeric column indices
+            numeric_indices = [i for i, col in enumerate(X.columns) if any(feat in col for feat in numeric_features)]
+            
+            # Select the model based on choice
+            if model_type == "Random Forest":
+                # Random Forest with hyperparameter tuning
+                pipeline = Pipeline([
+                    ('scaler', StandardScaler(with_mean=False)),  # StandardScaler preserves sparsity
+                    ('model', RandomForestRegressor(
+                        n_estimators=1000,
+                        max_depth=30,
+                        min_samples_split=5,
+                        min_samples_leaf=2,
+                        max_features='sqrt',
+                        bootstrap=True,
+                        random_state=42,
+                        n_jobs=-1
+                    ))
+                ])
+                
+            elif model_type == "Gradient Boosting":
+                # Gradient Boosting with hyperparameter tuning
+                pipeline = Pipeline([
+                    ('scaler', StandardScaler(with_mean=False)),
+                    ('model', GradientBoostingRegressor(
+                        n_estimators=500,
+                        max_depth=8,
+                        min_samples_split=5,
+                        min_samples_leaf=2,
+                        learning_rate=0.05,
+                        subsample=0.8,
+                        random_state=42
+                    ))
+                ])
+                
+            elif model_type == "XGBoost":
+                # XGBoost with hyperparameter tuning
+                pipeline = Pipeline([
+                    ('scaler', StandardScaler(with_mean=False)),
+                    ('model', XGBRegressor(
+                        n_estimators=1000,
+                        max_depth=8,
+                        learning_rate=0.01,
+                        subsample=0.8,
+                        colsample_bytree=0.8,
+                        min_child_weight=3,
+                        gamma=0.1,
+                        reg_alpha=0.1,
+                        reg_lambda=1,
+                        random_state=42,
+                        n_jobs=-1
+                    ))
+                ])
+                
+            else:  # Ensemble of models
+                # Create an ensemble by averaging predictions from multiple models
+                rf_model = RandomForestRegressor(
+                    n_estimators=600,
+                    max_depth=20,
+                    random_state=42,
+                    n_jobs=-1
+                )
+                
+                gb_model = GradientBoostingRegressor(
+                    n_estimators=300,
+                    max_depth=6,
+                    learning_rate=0.05,
+                    random_state=42
+                )
+                
+                xgb_model = XGBRegressor(
+                    n_estimators=800,
+                    max_depth=7,
+                    learning_rate=0.01,
+                    random_state=42,
+                    n_jobs=-1
+                )
+                
+                # Train each model
+                rf_model.fit(X_train, y_train)
+                gb_model.fit(X_train, y_train)
+                xgb_model.fit(X_train, y_train)
+                
+                # Return ensemble components
+                return {
+                    'rf': rf_model,
+                    'gb': gb_model,
+                    'xgb': xgb_model,
+                    'ensemble': True
+                }, X.columns.tolist()
+            
+            # Train the selected pipeline model
+            pipeline.fit(X_train, y_train)
+            
+            # Calculate performance metrics on test set
+            y_pred_test = pipeline.predict(X_test)
+            test_rmse = np.sqrt(mean_squared_error(y_test, y_pred_test))
+            test_r2 = r2_score(y_test, y_pred_test)
+            
+            # Return the model, column names, and performance metrics
+            return {
+                'model': pipeline,
+                'ensemble': False,
+                'rmse': test_rmse,
+                'r2': test_r2
+            }, X.columns.tolist()
+            
         except Exception as e:
             st.error(f"Model training failed: {str(e)}")
             return None, None
 
-    model, feature_columns = train_model(df)
+    model_info, feature_columns = train_model(df, model_choice)
     
-    if model and feature_columns:
-        input_df = pd.DataFrame([{
+    if model_info and feature_columns:
+        # Prepare input data for prediction
+        input_data = {
             'neighborhood_name': neighborhood,
             'classification_name': classification,
             'property_type_name': property_type,
             'area': area
-        }])
+        }
         
-        # One-hot encode input without dropping any category
-        input_processed = pd.get_dummies(input_df)
+        # Add bedrooms and bathrooms if available in the data
+        if 'bedrooms' in df.columns and df['bedrooms'].max() > 0:
+            input_data['bedrooms'] = bedrooms
+        if 'bathrooms' in df.columns and df['bathrooms'].max() > 0:
+            input_data['bathrooms'] = bathrooms
+        
+        input_df = pd.DataFrame([input_data])
+        
+        # One-hot encode input
+        input_processed = pd.get_dummies(input_df, drop_first=False)
         
         # Ensure all expected feature columns are available; if missing, add with value 0
         for col in feature_columns:
@@ -369,16 +569,65 @@ if not df.empty:
         input_processed = input_processed[feature_columns]
         
         try:
-            prediction = model.predict(X_test, y_test)
+            # Make prediction based on model type
+            if model_info.get('ensemble', False):
+                # Ensemble prediction (average of all models)
+                rf_pred = model_info['rf'].predict(input_processed)[0]
+                gb_pred = model_info['gb'].predict(input_processed)[0]
+                xgb_pred = model_info['xgb'].predict(input_processed)[0]
+                
+                # Weighted average (giving more weight to XGBoost)
+                prediction = (0.3 * rf_pred + 0.3 * gb_pred + 0.4 * xgb_pred)
+                
+                # Get RMSE by evaluating on test set
+                X_test = pd.get_dummies(df.sample(frac=0.2, random_state=42)[input_data.keys()], drop_first=False)
+                for col in feature_columns:
+                    if col not in X_test.columns:
+                        X_test[col] = 0
+                X_test = X_test[feature_columns]
+                y_test = df.sample(frac=0.2, random_state=42)['price']
+                
+                rf_preds = model_info['rf'].predict(X_test)
+                gb_preds = model_info['gb'].predict(X_test)
+                xgb_preds = model_info['xgb'].predict(X_test)
+                ensemble_preds = 0.3 * rf_preds + 0.3 * gb_preds + 0.4 * xgb_preds
+                
+                rmse = np.sqrt(mean_squared_error(y_test, ensemble_preds))
+                r2 = r2_score(y_test, ensemble_preds)
+            else:
+                # Single model prediction
+                prediction = model_info['model'].predict(input_processed)[0]
+                rmse = model_info.get('rmse', 0)
+                r2 = model_info.get('r2', 0)
             
+            # Display the prediction
             st.markdown('<div class="prediction-box">', unsafe_allow_html=True)
             st.markdown('<div style="font-size: 1.5rem; color: #6B7280;">Estimated Property Price</div>', unsafe_allow_html=True)
             st.markdown(f'<div style="font-size: 3rem; font-weight: bold; color: #1E3A8A; margin: 1rem 0;">${prediction:,.2f}</div>', unsafe_allow_html=True)
-            st.markdown('<div style="font-size: 0.875rem; color: #6B7280;">Based on property attributes and market data</div>', unsafe_allow_html=True)
+            st.markdown(f'<div style="font-size: 0.875rem; color: #6B7280;">Based on {model_choice} machine learning model</div>', unsafe_allow_html=True)
             st.markdown('</div>', unsafe_allow_html=True)
             
+            # Display model performance metrics
+            st.markdown(f"""
+            <div class="model-metrics">
+                <div class="metric-card">
+                    <div class="metric-value">${rmse:.2f}</div>
+                    <div class="metric-label">RMSE (Lower is better)</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-value">{r2:.3f}</div>
+                    <div class="metric-label">R² Score (Higher is better)</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-value">{model_choice}</div>
+                    <div class="metric-label">Model Type</div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # Display property details
             st.markdown("""
-            <div style="background-color: #F8FAFC; padding: 1.5rem; border-radius: 0.75rem; margin-bottom: 2rem; box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);">
+            <div style="background-color: #F8FAFC; padding: 1.5rem; border-radius: 0.75rem; margin: 2rem 0; box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);">
                 <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 1rem; color: #1E3A8A;">Property Details</div>
                 <table style="width: 100%; border-collapse: collapse;">
                     <tr>
@@ -393,28 +642,51 @@ if not df.empty:
                         <td style="padding: 0.5rem; border-bottom: 1px solid #E5E7EB; color: #6B7280;">Property Type</td>
                         <td style="padding: 0.5rem; border-bottom: 1px solid #E5E7EB; font-weight: 500;">{}</td>
                     </tr>
+            """.format(neighborhood, classification, property_type), unsafe_allow_html=True)
+            
+            # Add bedrooms/bathrooms if applicable
+            if 'bedrooms' in df.columns and df['bedrooms'].max() > 0:
+                st.markdown(f"""
+                    <tr>
+                        <td style="padding: 0.5rem; border-bottom: 1px solid #E5E7EB; color: #6B7280;">Bedrooms</td>
+                        <td style="padding: 0.5rem; border-bottom: 1px solid #E5E7EB; font-weight: 500;">{bedrooms}</td>
+                    </tr>
+                """, unsafe_allow_html=True)
+                
+            if 'bathrooms' in df.columns and df['bathrooms'].max() > 0:
+                st.markdown(f"""
+                    <tr>
+                        <td style="padding: 0.5rem; border-bottom: 1px solid #E5E7EB; color: #6B7280;">Bathrooms</td>
+                        <td style="padding: 0.5rem; border-bottom: 1px solid #E5E7EB; font-weight: 500;">{bathrooms}</td>
+                    </tr>
+                """, unsafe_allow_html=True)
+            
+            # Complete the table
+            st.markdown(f"""
                     <tr>
                         <td style="padding: 0.5rem; color: #6B7280;">Area</td>
-                        <td style="padding: 0.5rem; font-weight: 500;">{:.2f} m²</td>
+                        <td style="padding: 0.5rem; font-weight: 500;">{area:.2f} m²</td>
                     </tr>
                 </table>
             </div>
-            """.format(neighborhood, classification, property_type, area), unsafe_allow_html=True)
+            """, unsafe_allow_html=True)
             
         except Exception as e:
             st.error(f"Prediction failed: {str(e)}")
     
     st.markdown('<div class="sub-header">Market Analysis</div>', unsafe_allow_html=True)
     
-    tab1, tab2, tab3 = st.tabs(["Price Distribution", "Area vs Price", "Model Performance"])
+    tab1, tab2, tab3, tab4 = st.tabs(["Price Distribution", "Area vs Price", "Model Performance", "Feature Importance"])
     
     with tab1:
         try:
+            # Create a more advanced price distribution plot
             fig = px.histogram(df, x='price', 
                               title='Price Distribution in the Market',
                               labels={'price': 'Price ($)', 'count': 'Number of Properties'},
-                              color_discrete_sequence=['#3B82F6'])
-            fig.update_layout(
+                              color_discrete_sequence=['#3B82F6'],
+                              marginal='box',  # Add a box plot
+fig.update_layout(
                 title_font_size=20,
                 plot_bgcolor='white',
                 paper_bgcolor='white',
@@ -527,3 +799,13 @@ if not df.empty:
 
 else:
     st.error("Failed to load data from Supabase. Please check your database connection and table structure.")
+
+
+
+
+
+
+
+
+
+                               
