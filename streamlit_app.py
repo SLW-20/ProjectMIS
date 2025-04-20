@@ -8,7 +8,6 @@ from sklearn.svm import SVR
 import plotly.express as px
 from supabase import create_client
 from sklearn.tree import DecisionTreeRegressor
-from xgboost import XGBRegressor
 from sklearn.ensemble import GradientBoostingRegressor
 import os
 from PIL import Image
