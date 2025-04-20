@@ -344,7 +344,7 @@ if not df.empty:
             #model = KNeighborsRegressor(n_neighbors=3)
             #model = DecisionTreeRegressor(random_state=100)
           # model = XGBRegressor(n_estimators=100, learning_rate=0.1, random_state=42)
-            model = GradientBoostingRegressor(n_estimators=15000, learning_rate=0.1, random_state=42)
+            model = GradientBoostingRegressor(n_estimators=9000, learning_rate=0.1, random_state=42)
            # model = Lasso(alpha=0.1, random_state=42)
            # model = Ridge(alpha=1.0, random_state=42)
 
