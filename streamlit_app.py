@@ -333,7 +333,7 @@ if not df.empty:
             X = pd.get_dummies(data[['neighborhood_name', 'classification_name',
                                      'property_type_name', 'area']])
             y = data['price']
-            model = RandomForestRegressor(n_estimators=8000, random_state=42)
+            model = RandomForestRegressor(n_estimators=100, random_state=142)
            # model = LinearRegression()
             #model = SVR()
            #model = KNeighborsRegressor(n_neighbors=3)
