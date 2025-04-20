@@ -346,7 +346,7 @@ if not df.empty:
             #model = XGBRegressor(n_estimators=100, learning_rate=0.1, random_state=42)
             #model = GradientBoostingRegressor(n_estimators=8000, learning_rate=0.1, random_state=42)
             #model = Lasso(alpha=0.1, random_state=200)
-            model = Ridge(alpha=1.0, random_state=42)
+            model = Ridge(alpha=1.0, random_state=100)
 
             
            
