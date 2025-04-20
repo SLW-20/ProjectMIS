@@ -337,7 +337,7 @@ if not df.empty:
            # model = LinearRegression()
             #model = SVR()
            #model = KNeighborsRegressor(n_neighbors=3)
-model = DecisionTreeRegressor(random_state=42)
+model = DecisionTreeRegressor(random_state=20)
             model.fit(X, y)
             return model, X.columns.tolist()
         except Exception as e:
