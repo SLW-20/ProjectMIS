@@ -342,7 +342,7 @@ if not df.empty:
             #model = LinearRegression()
             #model = SVR()
             #model = KNeighborsRegressor(n_neighbors=3)
-            model = DecisionTreeRegressor(random_state=90)
+            model = DecisionTreeRegressor(random_state=100)
           # model = XGBRegressor(n_estimators=100, learning_rate=0.1, random_state=42)
             #model = GradientBoostingRegressor(n_estimators=100, learning_rate=0.1, random_state=42)
            # model = Lasso(alpha=0.1, random_state=42)
