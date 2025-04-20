@@ -340,6 +340,7 @@ if not df.empty:
            #model = KNeighborsRegressor(n_neighbors=3)
 #model = DecisionTreeRegressor(random_state=30)
             model = XGBRegressor(n_estimators=100, learning_rate=0.1, random_state=42)
+           
             model.fit(X, y)
             return model, X.columns.tolist()
         except Exception as e:
