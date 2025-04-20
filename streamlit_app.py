@@ -9,6 +9,7 @@ import plotly.express as px
 from supabase import create_client
 from sklearn.tree import DecisionTreeRegressor
 from xgboost import XGBRegressor
+from sklearn.ensemble import GradientBoostingRegressor
 import os
 from PIL import Image
 
@@ -339,7 +340,10 @@ if not df.empty:
             #model = SVR()
            #model = KNeighborsRegressor(n_neighbors=3)
 #model = DecisionTreeRegressor(random_state=30)
-            model = XGBRegressor(n_estimators=100, learning_rate=0.1, random_state=42)
+          #  model = XGBRegressor(n_estimators=100, learning_rate=0.1, random_state=42)
+            model = GradientBoostingRegressor(n_estimators=100, learning_rate=0.1, random_state=42)
+
+            
            
             model.fit(X, y)
             return model, X.columns.tolist()
