@@ -9,7 +9,6 @@ import plotly.express as px
 from supabase import create_client
 from sklearn.tree import DecisionTreeRegressor
 from sklearn.ensemble import GradientBoostingRegressor
-Linear model with L1 regularization (can shrink some coefficients to zero).
 from sklearn.linear_model import Lasso
 
 import os
