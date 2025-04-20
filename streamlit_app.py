@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.linear_model import LinearRegression
+from sklearn.svm import SVR
 import plotly.express as px
 from supabase import create_client
 import os
@@ -331,7 +332,8 @@ if not df.empty:
                                      'property_type_name', 'area']])
             y = data['price']
            # model = RandomForestRegressor(n_estimators=100, random_state=42)
-            model = LinearRegression()
+           # model = LinearRegression()
+            model = SVR(kernel='rbf', C=1.0, epsilon=0.1)
             model.fit(X, y)
             return model, X.columns.tolist()
         except Exception as e:
