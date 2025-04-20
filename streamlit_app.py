@@ -335,7 +335,7 @@ if not df.empty:
            # model = RandomForestRegressor(n_estimators=100, random_state=42)
            # model = LinearRegression()
             #model = SVR()
-            model = KNeighborsRegressor(n_neighbors=5)
+            model = KNeighborsRegressor(n_neighbors=15)
             model.fit(X, y)
             return model, X.columns.tolist()
         except Exception as e:
