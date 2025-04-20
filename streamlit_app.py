@@ -333,7 +333,7 @@ if not df.empty:
             y = data['price']
            # model = RandomForestRegressor(n_estimators=100, random_state=42)
            # model = LinearRegression()
-            model = SVR(kernel='rbf', C=1.0, epsilon=0.1)
+            model = SVR()
             model.fit(X, y)
             return model, X.columns.tolist()
         except Exception as e:
