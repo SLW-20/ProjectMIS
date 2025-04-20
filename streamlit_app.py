@@ -10,6 +10,7 @@ from supabase import create_client
 from sklearn.tree import DecisionTreeRegressor
 from sklearn.ensemble import GradientBoostingRegressor
 from sklearn.linear_model import Lasso
+from sklearn.linear_model import Ridge
 
 import os
 from PIL import Image
@@ -343,7 +344,8 @@ if not df.empty:
 #model = DecisionTreeRegressor(random_state=30)
           #  model = XGBRegressor(n_estimators=100, learning_rate=0.1, random_state=42)
             #model = GradientBoostingRegressor(n_estimators=100, learning_rate=0.1, random_state=42)
-            model = Lasso(alpha=0.1, random_state=42)
+           # model = Lasso(alpha=0.1, random_state=42)
+            model = Ridge(alpha=1.0, random_state=42)
 
             
            
