@@ -7,6 +7,7 @@ from sklearn.neighbors import KNeighborsRegressor
 from sklearn.svm import SVR
 import plotly.express as px
 from supabase import create_client
+from sklearn.tree import DecisionTreeRegressor
 import os
 from PIL import Image
 
@@ -335,7 +336,8 @@ if not df.empty:
            # model = RandomForestRegressor(n_estimators=100, random_state=42)
            # model = LinearRegression()
             #model = SVR()
-            model = KNeighborsRegressor(n_neighbors=3)
+           #model = KNeighborsRegressor(n_neighbors=3)
+model = DecisionTreeRegressor(random_state=42)
             model.fit(X, y)
             return model, X.columns.tolist()
         except Exception as e:
