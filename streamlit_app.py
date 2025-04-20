@@ -333,11 +333,11 @@ if not df.empty:
             X = pd.get_dummies(data[['neighborhood_name', 'classification_name',
                                      'property_type_name', 'area']])
             y = data['price']
-           # model = RandomForestRegressor(n_estimators=100, random_state=42)
+            model = RandomForestRegressor(n_estimators=100, random_state=42)
            # model = LinearRegression()
             #model = SVR()
            #model = KNeighborsRegressor(n_neighbors=3)
-model = DecisionTreeRegressor(random_state=30)
+#model = DecisionTreeRegressor(random_state=30)
             model.fit(X, y)
             return model, X.columns.tolist()
         except Exception as e:
