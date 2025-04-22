@@ -11,7 +11,6 @@ from sklearn.tree import DecisionTreeRegressor
 from sklearn.ensemble import GradientBoostingRegressor
 from sklearn.linear_model import Lasso
 from sklearn.linear_model import Ridge
-
 import os
 from PIL import Image
 
@@ -337,12 +336,12 @@ if not df.empty:
             X = pd.get_dummies(data[['neighborhood_name', 'classification_name',
                                      'property_type_name', 'area']])
             y = data['price']
-            #model = RandomForestRegressor(n_estimators=100, random_state=42)
+            model = RandomForestRegressor(n_estimators=100, random_state=42)
         
             #model = LinearRegression()
             #model = SVR()
             #model = KNeighborsRegressor(n_neighbors=3)
-            model = DecisionTreeRegressor(random_state=50)
+            #model = DecisionTreeRegressor(random_state=50)
             #model = XGBRegressor(n_estimators=100, learning_rate=0.1, random_state=42)
             #model = GradientBoostingRegressor(n_estimators=8000, learning_rate=0.1, random_state=42)
             #model = Lasso(alpha=0.1, random_state=200)
