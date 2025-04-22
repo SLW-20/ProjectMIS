@@ -339,8 +339,8 @@ if not df.empty:
             #model = RandomForestRegressor(n_estimators=100, random_state=42)
         
             #model = LinearRegression()
-            model = SVR()
-            #model = KNeighborsRegressor(n_neighbors=3)
+            #model = SVR()
+            model = KNeighborsRegressor(n_neighbors=3)
             #model = DecisionTreeRegressor(random_state=50)
             #model = XGBRegressor(n_estimators=100, learning_rate=0.1, random_state=42)
             #model = GradientBoostingRegressor(n_estimators=8000, learning_rate=0.1, random_state=42)
